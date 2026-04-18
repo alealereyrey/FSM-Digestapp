@@ -14,22 +14,20 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; }
-        #root { min-height: 100vh; }
+        body { margin: 0; padding: 0; background: #f0f4f8; }
+        * { box-sizing: border-box; }
     </style>
 </head>
-<body class="bg-slate-100">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // Desestructuramos las funciones de React
         const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
-        // ── CONFIGURACIÓN DE SUPABASE (NUBE) ──────────────────────────────────
+        // ── 1. CONEXIÓN A SUPABASE ───────────────────────────────────────────
         const SUPABASE_URL = "https://sgluzymiiejsgfcjzcjy.supabase.co";
         const SUPABASE_KEY = "sb_publishable_nlmxFYNw-uNjN8nazf0UxA_KWSnsM_3";
 
-        // Función para cargar datos de la nube
         async function sg(k) {
             try {
                 const res = await fetch(`${SUPABASE_URL}/rest/v1/app_memoria?clave=eq.${k}`, {
@@ -40,7 +38,6 @@
             } catch(e) { console.error("Error cargando:", e); return null; }
         }
 
-        // Función para guardar datos en la nube
         async function ss(k, v) {
             try {
                 await fetch(`${SUPABASE_URL}/rest/v1/app_memoria`, {
@@ -56,7 +53,7 @@
             } catch(e) { console.error("Error guardando:", e); }
         }
 
-        // ── CONSTANTES DE LA APP ─────────────────────────────────────────────
+        // ── 2. CONSTANTES ORIGINALES DE CLAUDE ───────────────────────────────
         const DR = {
           RGS:{color:"#22c55e",bg:"#dcfce7"},
           ART:{color:"#06b6d4",bg:"#cffafe"},
@@ -74,7 +71,6 @@
         const AL={E47:"Endoscopia S47",E46:"Endoscopia S46",C42:"Consulta C42",C43:"Consulta C43",CEN:"Capsula Endoscopica",HDD:"Hospital de Dia",VIB:"VIB",C4X:"Consulta Extra C4X"};
         const AG={E47:"endo",E46:"endo",C42:"con",C43:"con",CEN:"con",HDD:"hdd",VIB:"vib"};
 
-        // ── HELPERS ──────────────────────────────────────────────────────────
         function ld(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate());}
         function p2(n){return String(n).padStart(2,"0");}
         function pl(s){var a=s.split("-").map(Number);return new Date(a[0],a[1]-1,a[2],12,0,0);}
@@ -132,7 +128,7 @@
           return out;
         }
 
-        // ── COMPONENTE PRINCIPAL (APP) ──────────────────────────────────────
+        // ── 3. APLICACIÓN PRINCIPAL ──────────────────────────────────────────
         function App(){
           var now=new Date();
           var [vm,setVm]=useState("week");
@@ -158,25 +154,23 @@
           var tmr=useRef(null);
           var ldd=useRef(false);
 
-          // Cargar datos al iniciar
           useEffect(function(){
             if(ldd.current)return;ldd.current=true;
             (async function(){
-              var a=await sg("d:ab"); if(a)setAbr(a);
-              var b=await sg("d:ds"); if(b)setDs(b);
-              var c=await sg("d:lv"); if(c)setLvs(c);
-              var d=await sg("d:fe"); if(d)setFes(d);
-              var e=await sg("d:st"); if(e)setSts(e);
+              var a=await sg("d:ab");if(a)setAbr(a);
+              var b=await sg("d:ds");if(b)setDs(b);
+              var c=await sg("d:lv");if(c)setLvs(c);
+              var d=await sg("d:fe");if(d)setFes(d);
+              var e=await sg("d:st");if(e)setSts(e);
             })();
           },[]);
 
-          // Guardar datos automáticamente cuando cambian
           useEffect(function(){
             clearTimeout(tmr.current);
             tmr.current=setTimeout(async function(){
               if(ldd.current) {
-                  await ss("d:ab",abr); await ss("d:ds",ds); await ss("d:lv",lvs); await ss("d:fe",fes); await ss("d:st",sts);
-                  setSi(true); setTimeout(function(){setSi(false);},1500);
+                await ss("d:ab",abr);await ss("d:ds",ds);await ss("d:lv",lvs);await ss("d:fe",fes);await ss("d:st",sts);
+                setSi(true);setTimeout(function(){setSi(false);},1500);
               }
             },1000);
             return function(){clearTimeout(tmr.current);};
@@ -225,7 +219,6 @@
           function sDr(s,slot,act,doc){setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{[slot]:Object.assign({},d[slot]||{},{[act]:doc})})});});}
           function tC4(s){setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{c4x:!d.c4x})});});}
 
-          // Funciones de Exportar (Simplificadas para navegador)
           function dlCSV(rows,name){
             var lines=rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(",");}).join("\n");
             var blob=new Blob(["\uFEFF"+lines],{type:"text/csv;charset=utf-8;"});
@@ -233,6 +226,36 @@
             var a=document.createElement("a");a.style.display="none";a.href=url;a.download=name;
             document.body.appendChild(a);a.click();
             setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},200);
+          }
+          function expLv(){var rows=[["Medico","Tipo","Inicio","Fin","Validado","Informado"]];lvs.forEach(function(l){rows.push([l.doctor,l.type,l.startDate,l.endDate,l.validated?"Si":"No",l.informed?"Si":"No"]);});dlCSV(rows,"ausencias.csv");}
+          function expIn(){var rows=[["Fecha","Dia","Turno","Actividad","Estado"]];incs.forEach(function(i){rows.push([i.date,i.day,i.slot==="am"?"Manana":"Tarde",AL[i.act]||i.act,i.status==="suspended"?"Suspendida":"Sin cobertura"]);});dlCSV(rows,"incidencias.csv");}
+          function expPDF(){
+            var css="body{font-family:Arial,sans-serif;font-size:11px;margin:16px}h1{font-size:15px;margin:0 0 4px}.sub{color:#64748b;font-size:10px;margin-bottom:12px}table{border-collapse:collapse;width:100%;margin-bottom:16px}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:left;font-size:10px}td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top;font-size:10px}tr:nth-child(even) td{background:#f8fafc}.wh{background:#1e293b;color:#fff;padding:5px 8px;font-size:11px;font-weight:bold;margin:10px 0 4px;border-radius:4px}.RGS{background:#dcfce7;color:#166534;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.ART{background:#cffafe;color:#0e7490;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.MSS{background:#f3e8ff;color:#7e22ce;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.PPJ{background:#fef9c3;color:#854d0e;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.lv{color:#94a3b8;font-style:italic}.fes{background:#fef9c3;color:#854d0e;font-weight:bold}.bA{background:#3b82f6;color:#fff;padding:1px 5px;border-radius:4px;font-size:9px}.bB{background:#8b5cf6;color:#fff;padding:1px 5px;border-radius:4px;font-size:9px}.sus{background:#fef2f2;color:#991b1b;padding:1px 5px;border-radius:4px;font-size:9px}.noc{background:#fff7ed;color:#9a3412;padding:1px 5px;border-radius:4px;font-size:9px}";
+            var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Dashboard</title><style>"+css+"</style></head><body><h1>Dashboard - Servicio de Digestivo</h1><div class='sub'>"+new Date().toLocaleDateString("es-ES",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+"</div>";
+            function pw(slice,wtype,lbl){
+              html+="<div class='wh'>"+lbl+" <span class='b"+wtype+"'>Sem. "+wtype+"</span></div><table><tr><th>Dia</th><th>Actividad</th><th>Turno</th><th>Medico</th></tr>";
+              slice.forEach(function(date,idx){
+                var s=ld(date),dk=DK[idx];
+                if(ife(date)){html+="<tr><td><b>"+DN[idx]+"</b><br>"+s+"</td><td colspan='3' class='fes'>FESTIVO</td></tr>";return;}
+                var ag=ga(dk,date),acts=[];
+                Object.keys(ag.am).forEach(function(k){acts.push({act:k,doc:ag.am[k],slot:"am"});});
+                Object.keys(ag.pm).forEach(function(k){acts.push({act:k,doc:ag.pm[k],slot:"pm"});});
+                acts.forEach(function(it,i){
+                  var st=gst(s,it.slot,it.act);
+                  var dh=st==="suspended"?"<span class='sus'>Suspendida</span>":st==="nocoverage"?"<span class='noc'>Sin cobertura</span>":(!it.doc||it.doc===null)?"<span class='lv'>Sin designar</span>":it.doc==="__LEAVE__"?"<span class='lv'>Ausente</span>":"<span class='"+it.doc+"'>"+it.doc+"</span>";
+                  var dc=i===0?"<td rowspan='"+acts.length+"'><b>"+DN[idx]+"</b><br>"+s+"</td>":"";
+                  html+="<tr>"+dc+"<td>"+(AL[it.act]||it.act)+"</td><td>"+(it.slot==="am"?"Manana":"Tarde")+"</td><td>"+dh+"</td></tr>";
+                });
+              });
+              html+="</table>";
+            }
+            if(vm==="month"){mwk.forEach(function(m,wi){var ws=wd(m);pw(ws,gwt(ld(m)),"Semana "+(wi+1)+" "+fmtD(m)+" al "+fmtD(ws[4]));});}
+            else{pw(wds,wt,fmtD(wds[0])+" al "+fmtD(wds[4]));}
+            html+="</body></html>";
+            var win=window.open("","_blank","width=900,height=700");
+            if(!win){alert("Permite ventanas emergentes para exportar.");return;}
+            win.document.write(html);win.document.close();win.focus();
+            setTimeout(function(){win.print();},600);
           }
 
           var sh={ga:ga,gs:getSess,ds:ds,ife:ife,gst:gst,sst:sst,sDr:sDr,tSess:tSess,tSDoc:tSDoc,tC4:tC4,fil:fil,gwt:gwt,glv:glv};
@@ -244,14 +267,14 @@
                 onT={function(){setCm(mon(now));setCmo(now.getMonth());setCy(now.getFullYear());}}
                 tab={tab} setTab={setTab} ac={alts.length} ic={incs.length}
                 fil={fil} sf2={sf2} sexp={sexp} setSexp={setSexp}
+                expLv={expLv} expIn={expIn} expPDF={expPDF}
                 onAB={function(){setSabm(true);}} onFes={function(){setSfm(true);}} si={si}
               />
               {tab==="dashboard"&&(vm==="week"?<WView wds={wds} wt={wt} {...sh}/>:<MView mwk={mwk} cmo={cmo} {...sh}/>)}
               {tab==="alerts"&&<AView alts={alts}/>}
-              {tab==="incidents"&&<IView incs={incs} />}
+              {tab==="incidents"&&<IView incs={incs} onExp={expIn}/>}
               {tab==="absview"&&<AbView wds={wds} lvs={lvs} ife={ife} mwk={mwk} vm={vm}/>}
               {tab==="leaves"&&<LView lvs={lvs} setLvs={setLvs} fes={fes} onAdd={function(){setEl(null);setSlm(true);}} onEdit={function(l){setEl(l);setSlm(true);}}/>}
-              
               {slm&&<LModal lv={el}
                 onSave={function(l){if(l.id)setLvs(function(p){return p.map(function(x){return x.id===l.id?l:x;});});else setLvs(function(p){return p.concat([Object.assign({},l,{id:""+Date.now()})]);});setSlm(false);}}
                 onDel={function(id){setLvs(function(p){return p.filter(function(x){return x.id!==id;});});setSlm(false);}}
@@ -262,9 +285,7 @@
           );
         }
 
-        // --- LOS COMPONENTES DE INTERFAZ (RESUMIDOS PARA EL HTML) ---
-        // (Nota: He incluido aquí las funciones de interfaz necesarias para que el archivo sea autónomo)
-
+        // ── 4. TODOS TUS COMPONENTES VISUALES INTACTOS ───────────────────────
         function Hdr(p){
           var onPrev=p.vm==="week"?p.onPW:p.onPM, onNext=p.vm==="week"?p.onNW:p.onNM;
           var lbl=p.vm==="week"?fmtD(p.cm)+" - "+fmtD(p.wds[4]):MES[p.cmo]+" "+p.cy;
@@ -274,96 +295,581 @@
                 <div style={S.hBrand}>
                   <div style={S.bMark}>D</div>
                   <div>
-                    <div style={S.bTitle}>Digestivo FSM</div>
-                    {p.si && <span style={{fontSize:9,color:"#4ade80",marginLeft:8}}>• Guardado</span>}
+                    <div style={S.bTitle}>Servicio de Digestivo</div>
+                    <div style={S.bSub}>Sistema de Organizacion</div>
                   </div>
+                  {p.si && <span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",padding:"2px 8px",borderRadius:10,marginLeft:8}}>Guardado</span>}
                 </div>
                 <div style={S.hActs}>
                   <button style={S.aBtn} onClick={p.onFes}>FES</button>
                   <button style={S.aBtn} onClick={p.onAB}>A/B</button>
+                  <div style={{position:"relative"}}>
+                    <button style={S.aBtn} onClick={function(){p.setSexp(function(v){return !v;});}}>Exportar</button>
+                    {p.sexp && (
+                      <div style={S.ddMenu}>
+                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expPDF();}}>PDF</button>
+                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expLv();}}>Ausencias CSV</button>
+                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expIn();}}>Incidencias CSV</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <nav style={S.hNav}>
-                <div style={S.vtog}>
-                    <button style={Object.assign({},S.vtBtn,p.vm==="week"?S.vtA:{})} onClick={() => p.setVm("week")}>Sem</button>
-                    <button style={Object.assign({},S.vtBtn,p.vm==="month"?S.vtA:{})} onClick={() => p.setVm("month")}>Mes</button>
-                </div>
+              <div style={S.hNav}>
                 <div style={S.nLeft}>
-                  <button style={S.nBtn} onClick={onPrev}>‹</button>
+                  <div style={S.vtog}>
+                    <button style={Object.assign({},S.vtBtn,p.vm==="week"?S.vtA:{})} onClick={function(){p.setVm("week");}}>Semana</button>
+                    <button style={Object.assign({},S.vtBtn,p.vm==="month"?S.vtA:{})} onClick={function(){p.setVm("month");}}>Mes</button>
+                  </div>
+                  <button style={S.nBtn} onClick={onPrev}>&#8249;</button>
+                  <button style={Object.assign({},S.nBtn,{fontSize:12,padding:"4px 10px"})} onClick={p.onT}>Hoy</button>
+                  <button style={S.nBtn} onClick={onNext}>&#8250;</button>
                   <span style={S.wLbl}>{lbl}</span>
-                  <button style={S.nBtn} onClick={onNext}>›</button>
+                  {p.vm==="week" && <span style={Object.assign({},S.wBadge,{background:p.wt==="A"?"#3b82f6":"#8b5cf6"})}>Sem.{p.wt}</span>}
                 </div>
-              </nav>
-              <div style={S.tabs}>
-                <button style={Object.assign({},S.tab,p.tab==="dashboard"?S.tabA:{})} onClick={() => p.setTab("dashboard")}>Inicio</button>
-                <button style={Object.assign({},S.tab,p.tab==="leaves"?S.tabA:{})} onClick={() => p.setTab("leaves")}>Ausencias</button>
+                <div style={S.nRight}>
+                  <div style={S.tabs}>
+                    <button style={Object.assign({},S.tab,p.tab==="dashboard"?S.tabA:{})} onClick={function(){p.setTab("dashboard");}}>Dashboard</button>
+                    <button style={Object.assign({},S.tab,p.tab==="alerts"?S.tabA:{})} onClick={function(){p.setTab("alerts");}}>Alertas{p.ac>0&&<span style={S.aBadge}>{p.ac}</span>}</button>
+                    <button style={Object.assign({},S.tab,p.tab==="incidents"?S.tabA:{})} onClick={function(){p.setTab("incidents");}}>Incidencias{p.ic>0&&<span style={Object.assign({},S.aBadge,{background:"#f97316"})}>{p.ic}</span>}</button>
+                    <button style={Object.assign({},S.tab,p.tab==="absview"?S.tabA:{})} onClick={function(){p.setTab("absview");}}>Ausencias</button>
+                    <button style={Object.assign({},S.tab,p.tab==="leaves"?S.tabA:{})} onClick={function(){p.setTab("leaves");}}>Gestion</button>
+                  </div>
+                </div>
               </div>
+              {p.tab==="dashboard" && (
+                <div style={S.fBar}>
+                  <span style={S.fLbl}>Filtros:</span>
+                  <div style={S.fGrp}>
+                    <span style={S.fGLbl}>Medico</span>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="all"?"#475569":"transparent",color:p.fil.doc==="all"?"#fff":"#94a3b8",borderColor:p.fil.doc==="all"?"#475569":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","all");}}>Todos</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="RGS"?DR.RGS.bg:"transparent",color:p.fil.doc==="RGS"?DR.RGS.color:"#94a3b8",borderColor:p.fil.doc==="RGS"?DR.RGS.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","RGS");}}>RGS</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="ART"?DR.ART.bg:"transparent",color:p.fil.doc==="ART"?DR.ART.color:"#94a3b8",borderColor:p.fil.doc==="ART"?DR.ART.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","ART");}}>ART</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="MSS"?DR.MSS.bg:"transparent",color:p.fil.doc==="MSS"?DR.MSS.color:"#94a3b8",borderColor:p.fil.doc==="MSS"?DR.MSS.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","MSS");}}>MSS</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="PPJ"?DR.PPJ.bg:"transparent",color:p.fil.doc==="PPJ"?DR.PPJ.color:"#94a3b8",borderColor:p.fil.doc==="PPJ"?DR.PPJ.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","PPJ");}}>PPJ</button>
+                  </div>
+                  <div style={S.fDiv}/>
+                  <div style={S.fGrp}>
+                    <span style={S.fGLbl}>Turno</span>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.slot==="all"?"#3b82f6":"transparent",color:p.fil.slot==="all"?"#fff":"#94a3b8",borderColor:p.fil.slot==="all"?"#3b82f6":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("slot","all");}}>Ambos</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.slot==="am"?"#3b82f6":"transparent",color:p.fil.slot==="am"?"#fff":"#94a3b8",borderColor:p.fil.slot==="am"?"#3b82f6":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("slot","am");}}>Manana</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.slot==="pm"?"#3b82f6":"transparent",color:p.fil.slot==="pm"?"#fff":"#94a3b8",borderColor:p.fil.slot==="pm"?"#3b82f6":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("slot","pm");}}>Tarde</button>
+                  </div>
+                  <div style={S.fDiv}/>
+                  <div style={S.fGrp}>
+                    <span style={S.fGLbl}>Actividad</span>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="all"?"#6366f1":"transparent",color:p.fil.act==="all"?"#fff":"#94a3b8",borderColor:p.fil.act==="all"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","all");}}>Todas</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="endo"?"#6366f1":"transparent",color:p.fil.act==="endo"?"#fff":"#94a3b8",borderColor:p.fil.act==="endo"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","endo");}}>Endos.</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="con"?"#6366f1":"transparent",color:p.fil.act==="con"?"#fff":"#94a3b8",borderColor:p.fil.act==="con"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","con");}}>Consulta</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="hdd"?"#6366f1":"transparent",color:p.fil.act==="hdd"?"#fff":"#94a3b8",borderColor:p.fil.act==="hdd"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","hdd");}}>HDD</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="vib"?"#6366f1":"transparent",color:p.fil.act==="vib"?"#fff":"#94a3b8",borderColor:p.fil.act==="vib"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","vib");}}>VIB</button>
+                  </div>
+                  <div style={S.fDiv}/>
+                  <div style={S.fGrp}>
+                    <span style={S.fGLbl}>Mostrar</span>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.sess?"#0891b2":"transparent",color:p.fil.sess?"#fff":"#94a3b8",borderColor:p.fil.sess?"#0891b2":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("sess",!p.fil.sess);}}>Sesiones</button>
+                    <button style={Object.assign({},S.fChip,{background:p.fil.com?"#0891b2":"transparent",color:p.fil.com?"#fff":"#94a3b8",borderColor:p.fil.com?"#0891b2":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("com",!p.fil.com);}}>Comites</button>
+                  </div>
+                </div>
+              )}
             </header>
           );
         }
 
         function WView(p){
-          var cols=p.wds.map((date,i) => <DCol key={ld(date)} date={date} di={i} wt={p.wt} {...p}/>);
+          var cols=p.wds.map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={p.wt} compact={false} {...p}/>;});
           return <div style={S.dash}><div style={S.dGrid}>{cols}</div></div>;
         }
 
+        function MView(p){
+          var lbls=DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;});
+          var rows=p.mwk.map(function(m,wi){
+            var wtype=p.gwt(ld(m));
+            var cols=wd(m).map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={wtype} compact={true} dimmed={date.getMonth()!==p.cmo} {...p}/>;});
+            return (
+              <div key={ld(m)} style={S.mWRow}>
+                <div style={S.mWLbl}><span style={S.mWN}>S{wi+1}</span><span style={Object.assign({},S.wBadge,{fontSize:9,padding:"1px 5px",background:wtype==="A"?"#3b82f6":"#8b5cf6"})}>{wtype}</span></div>
+                <div style={S.mWGrid}>{cols}</div>
+              </div>
+            );
+          });
+          return <div style={S.mCont}><div style={S.mDayLbls}>{lbls}</div>{rows}</div>;
+        }
+
         function DCol(p){
-          var s=ld(p.date), dk=DK[p.di];
-          var fesd=p.ife(p.date);
-          var colSt=Object.assign({},S.dCol,fesd?{opacity:0.6}:{});
-          
+          var date=p.date,di=p.di,wt=p.wt,compact=p.compact,dimmed=p.dimmed;
+          var s=ld(date),dk=DK[di],fesd=p.ife(date);
+          var ag=p.ga(dk,date),sess=p.gs(dk,date,p.ds,wt);
+          var c4x=(p.ds[s]||{}).c4x;
+          var isT=ld(new Date())===s;
+          var hasPM=dk!=="thu"&&dk!=="fri";
+          var showAM=p.fil.slot==="all"||p.fil.slot==="am";
+          var showPM=p.fil.slot==="all"||p.fil.slot==="pm";
+          var coms=sess.filter(function(x){return x.type==="committee";});
+          var clin=sess.filter(function(x){return x.type==="session";});
+          var aP={s:s,gst:p.gst,sst:p.sst,sDr:p.sDr,df:p.fil.doc,compact:compact,date:date,glv:p.glv};
+          var colSt=Object.assign({},S.dCol,compact?S.dColC:{},dimmed?{opacity:0.4}:{},isT?{border:"2px solid #3b82f6"}:{});
+
+          if(fesd){
+            return <div style={colSt}><DHdr date={date} dk={dk} compact={compact}/><div style={S.fesB}><span style={S.fesL}>{compact?"FES":"FESTIVO"}</span></div></div>;
+          }
           return (
             <div style={colSt}>
-              <div style={S.dHdr}>
-                <span style={S.dName}>{DN[p.di]}</span>
-                <span style={S.dDate}>{fmtD(p.date)}</span>
+              <DHdr date={date} dk={dk} compact={compact}/>
+              {p.fil.com&&coms.length>0&&(<div style={S.sec}>{coms.map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;})}</div>)}
+              {showAM&&(
+                <div>
+                  {!compact&&<div style={S.secLbl}>Manana</div>}
+                  <div style={S.sec}>
+                    {p.fil.sess&&clin.filter(function(x){return x.time!=="13:30-14:30";}).map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;})}
+                    {(p.fil.act==="all"||p.fil.act==="endo")&&(<div style={S.twin}>{ag.am.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.am.E47} slot="am"/>}{ag.am.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.am.E46} slot="am"/>}</div>)}
+                    {(p.fil.act==="all"||p.fil.act==="con")&&(<div style={S.twin}>{ag.am.C43!==undefined&&<AC {...aP} act="C43" lbl={dk==="fri"?(wt==="A"?"C43-HEP":"C43-ARI"):"C43"} doc={ag.am.C43} slot="am"/>}{ag.am.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="fri"?(wt==="A"?"C42-EII":"C42-HDX"):"C42"} doc={ag.am.C42} slot="am"/>}{ag.am.CEN!==undefined&&<AC {...aP} act="CEN" lbl="CEN" doc={ag.am.CEN} slot="am"/>}</div>)}
+                    {(p.fil.act==="all"||p.fil.act==="hdd"||p.fil.act==="vib")&&(<div style={S.twin}>{(p.fil.act==="all"||p.fil.act==="hdd")&&ag.am.HDD!==undefined&&<AC {...aP} act="HDD" lbl="HDD" doc={ag.am.HDD} slot="am"/>}{(p.fil.act==="all"||p.fil.act==="vib")&&ag.am.VIB!==undefined&&<AC {...aP} act="VIB" lbl="VIB" doc={ag.am.VIB} slot="am"/>}</div>)}
+                  </div>
+                </div>
+              )}
+              {showPM&&p.fil.sess&&clin.filter(function(x){return x.time==="13:30-14:30";}).map(function(x){return <div key={x.id} style={{padding:"0 6px 4px"}}><SR s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/></div>;})}
+              {showPM&&hasPM&&(
+                <div>
+                  {!compact&&<div style={S.secLbl}>Tarde</div>}
+                  <div style={S.sec}>
+                    {(p.fil.act==="all"||p.fil.act==="endo")&&(<div style={S.twin}>{ag.pm.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.pm.E47} slot="pm" manual/>}{ag.pm.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.pm.E46} slot="pm" manual/>}</div>)}
+                    {(p.fil.act==="all"||p.fil.act==="con")&&(<div style={S.twin}>{ag.pm.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="wed"?"C42-EII":"C42"} doc={ag.pm.C42} slot="pm"/>}{ag.pm.C43!==undefined&&<AC {...aP} act="C43" lbl="C43" doc={ag.pm.C43} slot="pm"/>}</div>)}
+                    {c4x&&(p.fil.act==="all"||p.fil.act==="con")&&<AC {...aP} act="C4X" lbl="C4X+" doc={ag.pm.C4X||null} slot="pm" full/>}
+                    {!compact&&<button style={S.c4Btn} onClick={function(){p.tC4(s);}}>{c4x?"Quitar C4X":"Aniadir C4X"}</button>}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        function DHdr({date,dk,compact}){
+          var idx=DK.indexOf(dk);
+          return (
+            <div style={Object.assign({},S.dHdr,compact?S.dHdrC:{})}>
+              <span style={Object.assign({},S.dName,compact?{fontSize:11}:{})}>{compact?date.toLocaleDateString("es-ES",{weekday:"short"}).replace(".",""):DN[idx]}</span>
+              <span style={Object.assign({},S.dDate,compact?{fontSize:10}:{})}>{compact?date.getDate():fmtD(date)}</span>
+            </div>
+          );
+        }
+
+        function SR({s,ds,tS,tD,compact,date,glv}){
+          var isOn=s.active!==false;
+          var absent=new Set(date&&glv?Object.keys(DR).filter(function(d){return glv(d,date);}): []);
+          var chips=Object.keys(DR).map(function(doc){
+            var sel=s.docs&&s.docs.includes(doc),ab=absent.has(doc);
+            return (
+              <button key={doc} disabled={ab}
+                style={Object.assign({},S.dChip,{background:ab?"#f1f5f9":sel?DR[doc].bg:"#f8fafc",borderColor:ab?"#e2e8f0":sel?DR[doc].color:"#d1d5db",color:ab?"#d1d5db":sel?DR[doc].color:"#6b7280",cursor:ab?"not-allowed":"pointer",textDecoration:ab?"line-through":"none",opacity:ab?0.5:1})}
+                onClick={function(e){e.stopPropagation();if(!ab)tD(ds,s.id,doc);}}>
+                {doc}{ab?" X":""}
+              </button>
+            );
+          });
+          return (
+            <div style={Object.assign({},S.sRow,{opacity:isOn?1:0.4})}>
+              <div style={S.sHdr}>
+                <span style={S.sIcon}>{s.type==="committee"?"C":"S"}</span>
+                <span style={Object.assign({},S.sLbl,compact?{fontSize:9}:{})}>{compact?s.id:s.label}</span>
+                {!compact&&<span style={S.sTime}>{s.time}</span>}
+                <button style={Object.assign({},S.togBtn,{background:isOn?"#22c55e":"#94a3b8",marginLeft:"auto"})} onClick={function(e){e.stopPropagation();tS(ds,s.id);}}>{isOn?"ON":"OFF"}</button>
               </div>
-              <div style={{padding:8}}>
-                {fesd ? <div style={S.fesB}>FESTIVO</div> : <div style={{fontSize:11, color:"#64748b"}}>Turnos activos...</div>}
+              {isOn&&!compact&&<div style={S.sDocs}>{chips}</div>}
+            </div>
+          );
+        }
+
+        function AC({act,lbl,doc,s,slot,gst,sst,sDr,df,compact,full,manual,date,glv}){
+          var [sm,setSm]=useState(false);
+          var st=gst(s,slot,act);
+          var di=doc&&doc!=="__LEAVE__"?DR[doc]:null;
+          var isF=df!=="all"&&doc!==df&&doc!==null&&doc!=="__LEAVE__";
+          var avail=date&&glv?Object.keys(DR).filter(function(d){return!glv(d,date);}):Object.keys(DR);
+          var bg="#f8fafc",bc="#e2e8f0";
+          if(st==="suspended"){bg="#fef2f2";bc="#fca5a5";}
+          else if(st==="nocoverage"){bg="#fff7ed";bc="#fdba74";}
+          else if(!doc||doc===null)bg="#fffbeb";
+          else if(doc==="__LEAVE__")bg="#f1f5f9";
+          else if(di){bg=di.bg;bc=di.color+"55";}
+
+          var menuItems=avail.map(function(d){return <button key={d} style={Object.assign({},S.aMItem,{background:DR[d].bg})} onClick={function(){sDr(s,slot,act,d);setSm(false);}}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span></button>;});
+          var absentItems=Object.keys(DR).filter(function(d){return!avail.includes(d);}).map(function(d){return <div key={d} style={Object.assign({},S.aMItem,{background:"#f1f5f9",opacity:0.5,display:"flex",alignItems:"center",gap:6})}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span><span style={{fontSize:9,color:"#94a3b8"}}>Ausente</span></div>;});
+
+          return (
+            <div style={Object.assign({},S.aCell,full?{gridColumn:"1/-1"}:{},compact?S.aCellC:{},isF?{opacity:0.2}:{},{background:bg,borderColor:bc})} onClick={function(){setSm(function(v){return !v;});}}>
+              <div style={{display:"flex",alignItems:"center",gap:3}}><span style={Object.assign({},S.aName,compact?{fontSize:9}:{})}>{lbl}</span>{manual&&!compact&&<span style={S.mBadge}>m</span>}</div>
+              {!compact&&!st&&di&&<div style={Object.assign({},S.dChipD,{borderColor:di.color})}><span style={{color:di.color,fontWeight:700,fontSize:11}}>{doc}</span></div>}
+              {!compact&&!st&&(!doc||doc===null)&&<div style={S.unCh}>Sin designar</div>}
+              {!compact&&!st&&doc==="__LEAVE__"&&<div style={S.lvCh}>Ausente</div>}
+              {!compact&&st==="suspended"&&<div style={Object.assign({},S.stCh,{background:"#fef2f2",color:"#991b1b",borderColor:"#fca5a5"})}>Suspendida</div>}
+              {!compact&&st==="nocoverage"&&<div style={Object.assign({},S.stCh,{background:"#fff7ed",color:"#9a3412",borderColor:"#fdba74"})}>Sin cobertura</div>}
+              {compact&&!st&&di&&<div style={Object.assign({},S.dChipD,{borderColor:di.color,padding:"1px 5px"})}><span style={{color:di.color,fontWeight:700,fontSize:9}}>{doc}</span></div>}
+              {compact&&!st&&(!doc||doc===null)&&<span style={{fontSize:9,color:"#92400e",background:"#fffbeb",padding:"1px 4px",borderRadius:4}}>?</span>}
+              {compact&&!st&&doc==="__LEAVE__"&&<span style={{fontSize:9,color:"#94a3b8"}}>Aus</span>}
+              {compact&&st==="suspended"&&<span style={{fontSize:9,color:"#991b1b"}}>Sus</span>}
+              {compact&&st==="nocoverage"&&<span style={{fontSize:9,color:"#9a3412"}}>NC</span>}
+              {sm&&(
+                <div style={S.aMenu} onClick={function(e){e.stopPropagation();}}>
+                  <div style={S.aMT}>{lbl}</div>{menuItems}{absentItems}
+                  <button style={S.aMG} onClick={function(){sDr(s,slot,act,null);setSm(false);}}>Sin designar</button>
+                  <div style={{borderTop:"1px solid #f1f5f9",margin:"5px 0"}}/>
+                  <button style={Object.assign({},S.aMSt,{background:st==="nocoverage"?"#fff7ed":"#f8fafc",borderColor:st==="nocoverage"?"#fdba74":"#e2e8f0",color:st==="nocoverage"?"#9a3412":"#475569"})} onClick={function(){sst(s,slot,act,"nocoverage");setSm(false);}}>{st==="nocoverage"?"Quitar sin cobertura":"Sin cobertura"}</button>
+                  <button style={Object.assign({},S.aMSt,{background:st==="suspended"?"#fef2f2":"#f8fafc",borderColor:st==="suspended"?"#fca5a5":"#e2e8f0",color:st==="suspended"?"#991b1b":"#475569"})} onClick={function(){sst(s,slot,act,"suspended");setSm(false);}}>{st==="suspended"?"Quitar suspension":"Suspender"}</button>
+                  <button style={S.aMClose} onClick={function(){setSm(false);}}>Cerrar</button>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        function AView({alts}){
+          var items=alts.filter(function(a){return a.type==="u";}).map(function(a,i){return <div key={i} style={{fontSize:13,color:"#475569",padding:"3px 0"}}>- {a.day} ({a.date}): {a.act}</div>;});
+          return (
+            <div style={{padding:24,maxWidth:900,margin:"0 auto"}}>
+              <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Alertas</h2>
+              {alts.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin alertas</div>}
+              {items.length>0&&<div style={{background:"#fff",borderRadius:10,padding:16,borderLeft:"4px solid #eab308"}}><div style={{fontWeight:700,fontSize:14,color:"#eab308",marginBottom:10}}>Sin Designar</div>{items}</div>}
+            </div>
+          );
+        }
+
+        function IView({incs,onExp}){
+          var [fSt,setFSt]=useState("all"),[fMo,setFMo]=useState("all");
+          var months=[...new Set(incs.map(function(i){return i.date.slice(0,7);}))].sort();
+          var fil=incs.filter(function(i){return(fSt==="all"||i.status===fSt)&&(fMo==="all"||i.date.startsWith(fMo));});
+          var rows=fil.map(function(i,idx){
+            var slbl=i.slot==="am"?"Manana":"Tarde", slbg=i.slot==="am"?"#fef9c3":"#dbeafe", slco=i.slot==="am"?"#854d0e":"#1e40af";
+            var stlbl=i.status==="suspended"?"Suspendida":"Sin cobertura", stbg=i.status==="suspended"?"#fef2f2":"#fff7ed", stco=i.status==="suspended"?"#991b1b":"#9a3412", stbc=i.status==="suspended"?"#fca5a5":"#fdba74";
+            return (
+              <div key={idx} style={{display:"grid",gridTemplateColumns:"120px 100px 90px 1fr 150px",borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#fff":"#fafafa"}}>
+                <div style={{padding:"9px 14px",fontSize:12,color:"#475569"}}>{i.date}</div><div style={{padding:"9px 14px",fontSize:12,fontWeight:500}}>{i.day}</div>
+                <div style={{padding:"9px 14px"}}><span style={{background:slbg,color:slco,padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600}}>{slbl}</span></div>
+                <div style={{padding:"9px 14px",fontSize:12}}>{AL[i.act]||i.act}</div>
+                <div style={{padding:"9px 14px"}}><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:stbg,color:stco,border:"1px solid "+stbc}}>{stlbl}</span></div>
+              </div>
+            );
+          });
+          var moOpts=months.map(function(m){return <option key={m} value={m}>{MES[parseInt(m.slice(5,7))-1]} {m.slice(0,4)}</option>;});
+          return (
+            <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",margin:0}}>Incidencias de Cobertura</h2>
+                <button style={S.addBtn} onClick={onExp}>Exportar CSV</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+                <div style={{background:"#eef2ff",borderRadius:10,padding:"14px 18px",border:"1px solid #6366f133"}}><div style={{fontSize:22,fontWeight:800,color:"#6366f1"}}>{fil.length}</div><div style={{fontSize:12,color:"#64748b"}}>Total</div></div>
+                <div style={{background:"#fef2f2",borderRadius:10,padding:"14px 18px",border:"1px solid #991b1b33"}}><div style={{fontSize:22,fontWeight:800,color:"#991b1b"}}>{fil.filter(function(i){return i.status==="suspended";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Suspendidas</div></div>
+                <div style={{background:"#fff7ed",borderRadius:10,padding:"14px 18px",border:"1px solid #9a341233"}}><div style={{fontSize:22,fontWeight:800,color:"#9a3412"}}>{fil.filter(function(i){return i.status==="nocoverage";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Sin cobertura</div></div>
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+                <button style={Object.assign({},S.fChip,{background:fSt==="all"?"#6366f1":"#f1f5f9",color:fSt==="all"?"#fff":"#475569",borderColor:fSt==="all"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("all");}}>Todas</button>
+                <button style={Object.assign({},S.fChip,{background:fSt==="suspended"?"#6366f1":"#f1f5f9",color:fSt==="suspended"?"#fff":"#475569",borderColor:fSt==="suspended"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("suspended");}}>Suspendidas</button>
+                <button style={Object.assign({},S.fChip,{background:fSt==="nocoverage"?"#6366f1":"#f1f5f9",color:fSt==="nocoverage"?"#fff":"#475569",borderColor:fSt==="nocoverage"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("nocoverage");}}>Sin cobertura</button>
+                {months.length>0&&<select value={fMo} onChange={function(e){setFMo(e.target.value);}} style={Object.assign({},S.sel,{width:"auto",padding:"4px 10px",fontSize:12})}><option value="all">Todos los meses</option>{moOpts}</select>}
+              </div>
+              {fil.length===0?<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin incidencias</div>
+               :<div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"120px 100px 90px 1fr 150px",background:"#0f172a",color:"#94a3b8",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>
+                    <div style={{padding:"10px 14px"}}>Fecha</div><div style={{padding:"10px 14px"}}>Dia</div><div style={{padding:"10px 14px"}}>Turno</div><div style={{padding:"10px 14px"}}>Actividad</div><div style={{padding:"10px 14px"}}>Estado</div>
+                  </div>
+                  {rows}
+                </div>}
+            </div>
+          );
+        }
+
+        function AbView({wds,lvs,ife,mwk,vm}){
+          var [dm,setDm]=useState("dashboard");
+          var allD=vm==="month"?mwk.reduce(function(a,m){return a.concat(wd(m));},[]):wds;
+          function getAbs(date){
+            var s=ld(date);if(ife(date))return[];
+            return Object.keys(DR).map(function(doc){
+              var lv=lvs.find(function(l){return l.doctor===doc&&l.startDate<=s&&l.endDate>=s;});
+              if(!lv)return null;
+              var lt=LT.find(function(x){return x.c===lv.type;})||{l:lv.type};
+              return{doc:doc,type:lv.type,label:lt.l};
+            }).filter(Boolean);
+          }
+          var modBtns=(
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <button style={Object.assign({},S.fChip,{background:dm==="dashboard"?"#0f172a":"transparent",color:dm==="dashboard"?"#fff":"#94a3b8",borderColor:dm==="dashboard"?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 14px"})} onClick={function(){setDm("dashboard");}}>Dashboard</button>
+              <button style={Object.assign({},S.fChip,{background:dm==="list"?"#0f172a":"transparent",color:dm==="list"?"#fff":"#94a3b8",borderColor:dm==="list"?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 14px"})} onClick={function(){setDm("list");}}>Listado</button>
+            </div>
+          );
+          if(dm==="list"){
+            var rows=allD.filter(function(d){return d.getDay()!==0&&d.getDay()!==6;}).map(function(d){return{date:d,ds:ld(d),abs:getAbs(d)};}).filter(function(r){return r.abs.length>0;});
+            var cards=rows.map(function(r){
+              var dn=r.date.toLocaleDateString("es-ES",{weekday:"long"});
+              var chips=r.abs.map(function(a){
+                var d=DR[a.doc];
+                return (
+                  <div key={a.doc} style={{display:"flex",alignItems:"center",gap:8,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 12px"}}>
+                    <span style={{fontWeight:800,fontSize:13,color:d.color,background:d.bg,padding:"2px 8px",borderRadius:8}}>{a.doc}</span><span style={{fontSize:12,color:"#475569"}}>{a.label}</span><span style={{fontSize:10,color:"#94a3b8",background:"#f1f5f9",padding:"1px 6px",borderRadius:6}}>{a.type}</span>
+                  </div>
+                );
+              });
+              return (
+                <div key={r.ds} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden",marginBottom:10}}>
+                  <div style={{background:"#0f172a",padding:"8px 16px",display:"flex",alignItems:"center",gap:12}}>
+                    <span style={{color:"#fff",fontWeight:700,fontSize:14}}>{dn.charAt(0).toUpperCase()+dn.slice(1)}</span><span style={{color:"#94a3b8",fontSize:12}}>{r.ds}</span><span style={{background:"#ef4444",color:"#fff",fontSize:11,fontWeight:700,padding:"1px 8px",borderRadius:10,marginLeft:"auto"}}>{r.abs.length} ausente{r.abs.length>1?"s":""}</span>
+                  </div>
+                  <div style={{padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:8}}>{chips}</div>
+                </div>
+              );
+            });
+            return <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Ausencias</h2>{rows.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div>;
+          }
+          var weeks=vm==="month"?mwk:[wds[0]];
+          var lbls=DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;});
+          var wrows=weeks.map(function(m,wi){
+            var wD=vm==="month"?wd(m):wds;
+            var dcols=wD.map(function(date,idx){
+              var s=ld(date),fesd=ife(date),abs=getAbs(date),isT=ld(new Date())===s,comp=vm==="month";
+              var abItems=abs.map(function(a){
+                var d=DR[a.doc];
+                return (
+                  <div key={a.doc} style={{display:"flex",alignItems:"center",gap:4,background:d.bg,border:"1px solid "+d.color+"55",borderRadius:6,padding:comp?"2px 5px":"4px 8px"}}>
+                    <span style={{fontWeight:800,fontSize:comp?9:12,color:d.color}}>{a.doc}</span>{!comp&&<span style={{fontSize:11,color:"#475569",flex:1}}>{a.label}</span>}<span style={{fontSize:comp?8:10,color:"#94a3b8",background:"#fff",padding:"0 4px",borderRadius:4}}>{a.type}</span>
+                  </div>
+                );
+              });
+              return (
+                <div key={s} style={Object.assign({},S.dCol,comp?S.dColC:{},isT?{border:"2px solid #3b82f6"}:{},{minHeight:comp?60:120})}>
+                  <DHdr date={date} dk={DK[idx]} compact={comp}/>
+                  {fesd&&<div style={S.fesB}><span style={S.fesL}>{comp?"FES":"FESTIVO"}</span></div>}
+                  {!fesd&&abs.length===0&&<div style={{padding:comp?"4px 6px":"8px 10px",color:"#94a3b8",fontSize:comp?9:11,textAlign:"center"}}>{comp?"OK":"Sin ausencias"}</div>}
+                  {!fesd&&abs.length>0&&<div style={{padding:comp?"3px 4px":"6px 8px",display:"flex",flexDirection:"column",gap:comp?2:4}}>{abItems}</div>}
+                </div>
+              );
+            });
+            return (
+              <div key={wi} style={vm==="month"?Object.assign({},S.mWRow,{marginBottom:8}):{display:"grid",gridTemplateColumns:"repeat(5,minmax(170px,1fr))",gap:10,minWidth:860}}>
+                {vm==="month"&&<div style={S.mWLbl}><span style={S.mWN}>S{wi+1}</span></div>}<div style={vm==="month"?S.mWGrid:{display:"contents"}}>{dcols}</div>
+              </div>
+            );
+          });
+          return <div style={{padding:"16px 12px"}}>{modBtns}{vm==="month"&&<div style={S.mDayLbls}>{lbls}</div>}{wrows}</div>;
+        }
+
+        function LView({lvs,setLvs,fes,onAdd,onEdit}){
+          var sum={};
+          Object.keys(DR).forEach(function(doc){sum[doc]={};LT.forEach(function(lt){sum[doc][lt.c]=0;});});
+          lvs.forEach(function(l){
+            var s=new Date(l.startDate+"T12:00:00"),e=new Date(l.endDate+"T12:00:00"),days=0;
+            for(var d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6&&!fes.includes(ld(d)))days++;}
+            if(sum[l.doctor])sum[l.doctor][l.type]=(sum[l.doctor][l.type]||0)+days;
+          });
+          var cards=lvs.map(function(l){
+            var lt=LT.find(function(x){return x.c===l.type;})||{l:l.type};
+            return (
+              <div key={l.id} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+                <div style={{padding:"4px 12px",borderRadius:20,fontWeight:700,fontSize:13,background:DR[l.doctor]&&DR[l.doctor].bg,color:DR[l.doctor]&&DR[l.doctor].color}}>{l.doctor}</div>
+                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{lt.l}</div><div style={{fontSize:11,color:"#64748b"}}>{l.startDate} - {l.endDate}</div></div>
+                <div style={{display:"flex",gap:6}}>
+                  <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.validated?"#22c55e":"#94a3b8"}}>Validado</span>
+                  <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.informed?"#22c55e":"#94a3b8"}}>Informado</span>
+                </div>
+                <button style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:13}} onClick={function(){onEdit(l);}}>Editar</button>
+              </div>
+            );
+          });
+          var hdr=["Medico"].concat(LT.map(function(x){return x.c;})).map(function(c){return <div key={c} style={{padding:"8px",textAlign:"center"}}>{c}</div>;});
+          var srows=Object.keys(DR).map(function(doc){
+            var cells=LT.map(function(lt){return <div key={lt.c} style={{padding:"8px",textAlign:"center",fontSize:12,color:sum[doc][lt.c]>0?"#ef4444":"#94a3b8"}}>{sum[doc][lt.c]||0}</div>;});
+            return (
+              <div key={doc} style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",borderBottom:"1px solid #f1f5f9"}}>
+                <div style={{padding:"8px",fontWeight:700,color:DR[doc].color,textAlign:"center"}}>{doc}</div>{cells}
+              </div>
+            );
+          });
+          return (
+            <div style={{padding:24,maxWidth:900,margin:"0 auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",margin:0}}>Gestion de Ausencias</h2><button style={S.addBtn} onClick={onAdd}>+ Nueva</button>
+              </div>
+              {lvs.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24}}>No hay ausencias</div>}{cards}
+              <h3 style={{fontSize:16,fontWeight:700,color:"#0f172a",marginTop:32,marginBottom:12}}>Resumen Anual</h3>
+              <div style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid #e2e8f0"}}><div style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",background:"#0f172a",color:"#94a3b8",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{hdr}</div>{srows}</div>
+            </div>
+          );
+        }
+
+        function LModal({lv,onSave,onDel,onClose}){
+          var [form,setForm]=useState(lv||{doctor:"RGS",type:"VAC",startDate:"",endDate:"",validated:false,informed:false});
+          function set(k,v){setForm(function(p){return Object.assign({},p,{[k]:v});});}
+          var docOpts=Object.keys(DR).map(function(d){return <option key={d} value={d}>{d}</option>;});
+          var typeOpts=LT.map(function(lt){return <option key={lt.c} value={lt.c}>{lt.l} ({lt.c})</option>;});
+          return (
+            <div style={S.overlay}>
+              <div style={S.modal}>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>{lv?"Editar":"Nueva"} Ausencia</h3>
+                <div style={{marginBottom:14}}><label style={S.lbl}>Medico</label><select style={S.sel} value={form.doctor} onChange={function(e){set("doctor",e.target.value);}}>{docOpts}</select></div>
+                <div style={{marginBottom:14}}><label style={S.lbl}>Tipo</label><select style={S.sel} value={form.type} onChange={function(e){set("type",e.target.value);}}>{typeOpts}</select></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                  <div><label style={S.lbl}>Inicio</label><input type="date" style={S.inp} value={form.startDate} onChange={function(e){set("startDate",e.target.value);}}/></div>
+                  <div><label style={S.lbl}>Fin</label><input type="date" style={S.inp} value={form.endDate} onChange={function(e){set("endDate",e.target.value);}}/></div>
+                </div>
+                <div style={{display:"flex",gap:16,marginBottom:16}}>
+                  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#475569",cursor:"pointer"}}><input type="checkbox" checked={form.validated} onChange={function(e){set("validated",e.target.checked);}}/> Validado</label>
+                  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#475569",cursor:"pointer"}}><input type="checkbox" checked={form.informed} onChange={function(e){set("informed",e.target.checked);}}/> Informado</label>
+                </div>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  {lv&&<button style={S.btnD} onClick={function(){onDel(lv.id);}}>Eliminar</button>}
+                  <button style={S.btnS} onClick={onClose}>Cancelar</button>
+                  <button style={S.btnP} onClick={function(){onSave(form);}}>Guardar</button>
+                </div>
               </div>
             </div>
           );
         }
 
-        // (Vistas vacías para no alargar el código, Claude las generará completas si las necesitas)
-        function AView(){ return <div style={{padding:20}}>Vista de Alertas</div> }
-        function IView(){ return <div style={{padding:20}}>Vista de Incidencias</div> }
-        function AbView(){ return <div style={{padding:20}}>Vista de Ausencias</div> }
-        function LView(){ return <div style={{padding:20}}>Gestión de Médicos</div> }
-        function LModal(){ return null }
-        function ABModal({onClose}){ return <div style={S.overlay} onClick={onClose}><div style={S.modal}>Configurar A/B</div></div> }
-        function FModal({onClose}){ return <div style={S.overlay} onClick={onClose}><div style={S.modal}>Días Festivos</div></div> }
+        function ABModal({abr,onSave,onClose}){
+          var tm=ld(mon(new Date()));
+          var [d,setD]=useState(tm),[t,setT]=useState("A");
+          var prop=abr.filter(function(r){return r.date!==d;}).concat([{date:d,type:t}]);
+          var prev=[0,1,2,3,4].map(function(i){var nd=new Date();nd.setDate(nd.getDate()+i*7);var ds=ld(mon(nd));return{ds:ds,wt:calcWT(prop,ds)};});
+          var prevRows=prev.map(function(x,i){
+            return (
+              <div key={x.ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:3}}>
+                <span style={{color:"#475569"}}>{i===0?"Esta semana":i===1?"Proxima":"+"+(i)+"s"} ({x.ds})</span><span style={{fontWeight:700,padding:"1px 10px",borderRadius:10,color:"#fff",background:x.wt==="A"?"#3b82f6":"#8b5cf6"}}>Sem. {x.wt}</span>
+              </div>
+            );
+          });
+          var histRows=abr.slice().sort(function(a,b){return b.date.localeCompare(a.date);}).map(function(r){
+            return <div key={r.date} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#78350f",padding:"2px 0"}}><span>Desde {r.date}</span><span style={{fontWeight:700,padding:"0 8px",borderRadius:8,color:"#fff",background:r.type==="A"?"#3b82f6":"#8b5cf6"}}>Sem. {r.type}</span></div>;
+          });
+          return (
+            <div style={S.overlay}>
+              <div style={Object.assign({},S.modal,{maxWidth:500})}>
+                <h3 style={{fontSize:17,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Configurar Semana A/B</h3>
+                <p style={{fontSize:12,color:"#64748b",marginBottom:16}}>El nuevo seteo aplica desde el lunes elegido hacia adelante.</p>
+                <div style={{marginBottom:14}}><label style={S.lbl}>Desde el lunes</label><input type="date" style={S.inp} value={d} min={tm} onChange={function(e){var x=new Date(e.target.value+"T12:00:00");setD(ld(mon(x)));}}/></div>
+                <div style={{marginBottom:16}}>
+                  <label style={S.lbl}>Esa semana sera de tipo</label>
+                  <div style={{display:"flex",gap:8}}>
+                    <button style={{flex:1,padding:"8px",borderRadius:8,border:"2px solid",borderColor:t==="A"?"#3b82f6":"#e2e8f0",background:t==="A"?"#eff6ff":"#f8fafc",color:t==="A"?"#1d4ed8":"#94a3b8",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}} onClick={function(){setT("A");}}>Semana A</button>
+                    <button style={{flex:1,padding:"8px",borderRadius:8,border:"2px solid",borderColor:t==="B"?"#8b5cf6":"#e2e8f0",background:t==="B"?"#f5f3ff":"#f8fafc",color:t==="B"?"#7c3aed":"#94a3b8",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}} onClick={function(){setT("B");}}>Semana B</button>
+                  </div>
+                </div>
+                <div style={{background:"#f8fafc",borderRadius:8,padding:10,marginBottom:14,border:"1px solid #e2e8f0"}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>Vista previa</div>{prevRows}</div>
+                {abr.length>0&&(<div style={{background:"#fffbeb",borderRadius:8,padding:10,marginBottom:14,border:"1px solid #fde68a"}}><div style={{fontSize:11,fontWeight:700,color:"#92400e",textTransform:"uppercase",marginBottom:6}}>Historial</div>{histRows}</div>)}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button style={S.btnS} onClick={onClose}>Cancelar</button><button style={S.btnP} onClick={function(){onSave(d,t);}}>Guardar</button></div>
+              </div>
+            </div>
+          );
+        }
 
-        // --- ESTILOS ---
+        function FModal({fes,onAdd,onRem,onClose}){
+          var [nd,setNd]=useState("");
+          var items=fes.slice().sort().map(function(d){
+            return (
+              <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #f1f5f9",fontSize:13}}>
+                <span>{d}</span><button style={S.btnD} onClick={function(){onRem(d);}}>X</button>
+              </div>
+            );
+          });
+          return (
+            <div style={S.overlay}>
+              <div style={S.modal}>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>Dias Festivos</h3>
+                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                  <input type="date" style={Object.assign({},S.inp,{flex:1})} value={nd} onChange={function(e){setNd(e.target.value);}}/><button style={S.btnP} onClick={function(){if(nd){onAdd(nd);setNd("");}}}>Aniadir</button>
+                </div>
+                <div style={{maxHeight:200,overflowY:"auto"}}>{items}{fes.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:16}}>Sin festivos</div>}</div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button style={S.btnP} onClick={onClose}>Cerrar</button></div>
+              </div>
+            </div>
+          );
+        }
+
+        // ── 5. ESTILOS ───────────────────────────────────────────────────────
         const S={
-          app:{fontFamily:"sans-serif",background:"#f1f5f9",minHeight:"100vh"},
-          hdr:{background:"#0f172a",color:"#fff",padding:"10px 15px",position:"sticky",top:0,zIndex:10},
-          hTop:{display:"flex",justifyContent:"space-between",alignItems:"center"},
-          hBrand:{display:"flex",alignItems:"center",gap:8},
-          bMark:{width:30,height:30,background:"#3b82f6",borderRadius:6,display:"flex",justifyContent:"center",alignItems:"center",fontWeight:"bold"},
-          bTitle:{fontSize:16,fontWeight:"bold"},
-          hNav:{display:"flex",justifyContent:"space-between",marginTop:10},
-          vtog:{display:"flex",background:"#1e293b",borderRadius:6},
-          vtBtn:{padding:"4px 10px",color:"#94a3b8",border:"none",background:"none",fontSize:12},
-          vtA:{background:"#3b82f6",color:"#fff",borderRadius:6},
-          nLeft:{display:"flex",alignItems:"center",gap:10},
-          nBtn:{background:"none",border:"none",color:"#fff",fontSize:20},
-          wLbl:{fontSize:14},
-          tabs:{display:"flex",gap:10,marginTop:10},
-          tab:{padding:"6px 12px",fontSize:13,color:"#94a3b8",border:"none",background:"none"},
-          tabA:{color:"#fff",borderBottom:"2px solid #3b82f6"},
-          dash:{padding:10},
-          dGrid:{display:"grid",gridTemplateColumns:"1fr",gap:10},
-          dCol:{background:"#fff",borderRadius:8,boxShadow:"0 1px 3px rgba(0,0,0,0.1)"},
-          dHdr:{background:"#1e293b",color:"#fff",padding:"6px 10px",display:"flex",justifyContent:"space-between",borderRadius:"8px 8px 0 0"},
-          dName:{fontSize:12,fontWeight:"bold"},
+          app:{fontFamily:"Arial,sans-serif",background:"#f0f4f8",minHeight:"100vh",color:"#1e293b"},
+          hdr:{background:"#0f172a",color:"#f8fafc",padding:"0 20px",boxShadow:"0 2px 12px rgba(0,0,0,0.3)",position:"sticky",top:0,zIndex:100},
+          hTop:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0 8px",borderBottom:"1px solid rgba(255,255,255,0.08)"},
+          hBrand:{display:"flex",alignItems:"center",gap:10},
+          bMark:{width:34,height:34,background:"linear-gradient(135deg,#3b82f6,#06b6d4)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:17,color:"#fff"},
+          bTitle:{fontWeight:700,fontSize:15},
+          bSub:{fontSize:10,color:"#94a3b8",textTransform:"uppercase"},
+          hActs:{display:"flex",gap:6,alignItems:"center"},
+          aBtn:{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",color:"#f0f4f8",padding:"5px 10px",borderRadius:6,fontSize:11,cursor:"pointer",fontFamily:"inherit"},
+          ddMenu:{position:"absolute",top:"100%",right:0,background:"#1e293b",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,overflow:"hidden",zIndex:200,minWidth:180,marginTop:4,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"},
+          ddItem:{display:"block",width:"100%",padding:"9px 14px",background:"none",border:"none",color:"#e2e8f0",textAlign:"left",cursor:"pointer",fontSize:12,fontFamily:"inherit"},
+          hNav:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0"},
+          nLeft:{display:"flex",alignItems:"center",gap:6},
+          nRight:{display:"flex",gap:10,alignItems:"center"},
+          vtog:{display:"flex",background:"rgba(255,255,255,0.06)",borderRadius:6,overflow:"hidden",border:"1px solid rgba(255,255,255,0.1)"},
+          vtBtn:{padding:"4px 12px",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,fontFamily:"inherit"},
+          vtA:{background:"#3b82f6",color:"#fff"},
+          nBtn:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"#e2e8f0",padding:"4px 11px",borderRadius:6,cursor:"pointer",fontSize:16,fontFamily:"inherit"},
+          wLbl:{fontSize:13,fontWeight:600,color:"#e2e8f0",marginLeft:2},
+          wBadge:{display:"inline-block",padding:"2px 8px",borderRadius:12,fontSize:11,fontWeight:700,color:"#fff"},
+          tabs:{display:"flex",gap:3},
+          tab:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"#94a3b8",padding:"5px 12px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",position:"relative"},
+          tabA:{background:"#3b82f6",borderColor:"#3b82f6",color:"#fff"},
+          aBadge:{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700},
+          fBar:{display:"flex",alignItems:"center",gap:8,padding:"6px 0 8px",overflowX:"auto",borderTop:"1px solid rgba(255,255,255,0.06)",flexWrap:"wrap"},
+          fLbl:{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",flexShrink:0},
+          fGrp:{display:"flex",alignItems:"center",gap:4,flexShrink:0},
+          fGLbl:{fontSize:9,color:"#475569",fontWeight:700,textTransform:"uppercase",marginRight:2},
+          fChip:{padding:"3px 9px",borderRadius:12,border:"1px solid",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:500},
+          fDiv:{width:1,height:20,background:"rgba(255,255,255,0.1)",flexShrink:0},
+          dash:{padding:"16px 12px",overflowX:"auto"},
+          dGrid:{display:"grid",gridTemplateColumns:"repeat(5,minmax(185px,1fr))",gap:10,minWidth:940},
+          mCont:{padding:"12px 16px",overflowX:"auto"},
+          mDayLbls:{display:"grid",gridTemplateColumns:"48px repeat(5,1fr)",gap:6,marginBottom:4},
+          mDL:{textAlign:"center",fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase"},
+          mWRow:{display:"flex",gap:6,marginBottom:8,alignItems:"stretch"},
+          mWLbl:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:42,gap:4,flexShrink:0},
+          mWN:{fontSize:10,color:"#94a3b8",fontWeight:700},
+          mWGrid:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,flex:1,minWidth:0},
+          dCol:{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.05)",position:"relative",overflow:"visible"},
+          dColC:{borderRadius:8},
+          dHdr:{background:"#0f172a",color:"#fff",padding:"9px 10px",display:"flex",alignItems:"center",gap:6,borderRadius:"9px 9px 0 0"},
+          dHdrC:{padding:"5px 8px",borderRadius:"7px 7px 0 0"},
+          dName:{fontWeight:700,fontSize:13,flex:1},
           dDate:{fontSize:10,color:"#94a3b8"},
-          fesB:{padding:20,textAlign:"center",color:"#94a3b8",fontSize:14,fontWeight:"bold"},
-          overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"center",zIndex:100},
-          modal:{background:"#fff",padding:20,borderRadius:12,width:"90%"}
+          fesB:{padding:12,textAlign:"center",background:"repeating-linear-gradient(45deg,#fef9c3,#fef9c3 6px,#fefce8 6px,#fefce8 12px)",margin:8,borderRadius:6},
+          fesL:{fontWeight:700,color:"#854d0e",fontSize:12},
+          secLbl:{fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#64748b",padding:"7px 10px 2px"},
+          sec:{padding:"3px 6px 6px",display:"flex",flexDirection:"column",gap:3},
+          twin:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3},
+          aCell:{border:"1px solid",borderRadius:7,padding:"5px 7px",cursor:"pointer",position:"relative",display:"flex",flexDirection:"column",gap:3},
+          aCellC:{padding:"4px 5px",borderRadius:5,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
+          aName:{fontSize:11,fontWeight:700,color:"#334155"},
+          mBadge:{width:6,height:6,borderRadius:"50%",background:"#f97316",display:"inline-block",marginLeft:3},
+          dChipD:{display:"inline-flex",alignItems:"center",padding:"1px 7px",borderRadius:10,border:"1.5px solid",alignSelf:"flex-start",background:"#fff"},
+          lvCh:{background:"#f1f5f9",color:"#94a3b8",fontSize:9,padding:"1px 6px",borderRadius:8,border:"1px dashed #cbd5e1",alignSelf:"flex-start"},
+          unCh:{background:"#fffbeb",color:"#92400e",fontSize:9,padding:"1px 6px",borderRadius:8,border:"1px dashed #fcd34d",alignSelf:"flex-start"},
+          stCh:{fontSize:9,padding:"2px 7px",borderRadius:8,border:"1px solid",alignSelf:"flex-start",fontWeight:600},
+          aMenu:{position:"absolute",top:"100%",left:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:9,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",zIndex:300,minWidth:170,padding:7,display:"flex",flexDirection:"column",gap:3},
+          aMT:{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",padding:"1px 5px 5px",borderBottom:"1px solid #f1f5f9",marginBottom:2},
+          aMItem:{padding:"5px 9px",borderRadius:5,border:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",textAlign:"left"},
+          aMG:{padding:"5px 9px",borderRadius:5,border:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",textAlign:"left",background:"#f1f5f9",color:"#475569"},
+          aMSt:{padding:"6px 9px",borderRadius:5,border:"1px solid",cursor:"pointer",fontSize:12,fontFamily:"inherit",textAlign:"left",fontWeight:500},
+          aMClose:{padding:"4px 9px",borderRadius:5,border:"1px solid #e2e8f0",cursor:"pointer",fontSize:11,fontFamily:"inherit",background:"#f8fafc",color:"#64748b",marginTop:2},
+          sRow:{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:5,padding:"4px 7px"},
+          sHdr:{display:"flex",alignItems:"center",gap:4},
+          sIcon:{fontSize:10,fontWeight:700,color:"#3730a3"},
+          sLbl:{fontSize:10,fontWeight:600,color:"#1e40af",flex:1},
+          sTime:{fontSize:9,color:"#60a5fa"},
+          sDocs:{display:"flex",gap:3,marginTop:4,flexWrap:"wrap"},
+          dChip:{padding:"2px 6px",borderRadius:8,border:"1.5px solid",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},
+          togBtn:{padding:"2px 7px",borderRadius:8,border:"none",fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",color:"#fff"},
+          c4Btn:{marginTop:3,width:"100%",padding:"3px 0",background:"none",border:"1px dashed #cbd5e1",borderRadius:5,color:"#64748b",fontSize:10,cursor:"pointer",fontFamily:"inherit"},
+          overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(2px)"},
+          modal:{background:"#fff",borderRadius:12,padding:24,minWidth:340,maxWidth:460,width:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"},
+          lbl:{display:"block",fontSize:11,fontWeight:600,color:"#475569",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"},
+          sel:{width:"100%",padding:"7px 9px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc"},
+          inp:{width:"100%",padding:"7px 9px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",boxSizing:"border-box"},
+          addBtn:{background:"#3b82f6",color:"#fff",border:"none",padding:"7px 14px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"},
+          btnP:{background:"#3b82f6",color:"#fff",border:"none",padding:"7px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"},
+          btnS:{background:"#f1f5f9",color:"#475569",border:"1px solid #e2e8f0",padding:"7px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontFamily:"inherit"},
+          btnD:{background:"#fef2f2",color:"#ef4444",border:"1px solid #fca5a5",padding:"7px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontFamily:"inherit"},
         };
 
-        // RENDERIZADO FINAL
+        // ── 6. RENDERIZADO ───────────────────────────────────────────────────
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>

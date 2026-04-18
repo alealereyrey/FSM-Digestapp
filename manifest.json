@@ -1,15 +1,28 @@
 {
-  "short_name": "FSM-DigestApp",
+  "short_name": "DigestApp",
   "name": "FSM - Servicio de Digestivo",
- "icons": [
+  "icons": [
+    {
+      "src": "./icono.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "./icono.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icono.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "start_url": ".",
+  "start_url": "./index.html",
   "display": "standalone",
   "theme_color": "#0f172a",
-  "background_color": "#f0f4f8"
+  "background_color": "#0f172a"
 }

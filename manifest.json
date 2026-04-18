@@ -1,9 +1,9 @@
 {
   "short_name": "FSM-DigestApp",
   "name": "FSM - Servicio de Digestivo",
-  "icons": [
+ "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
+      "src": "./icono.png",
       "sizes": "512x512",
       "type": "image/png"
     }

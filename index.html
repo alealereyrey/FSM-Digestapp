@@ -24,58 +24,20 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
-        // ── 1. CONEXIÓN A SUPABASE ───────────────────────────────────────────
-        const SUPABASE_URL = "https://sgluzymiiejsgfcjzcjy.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_nlmxFYNw-uNjN8nazf0UxA_KWSnsM_3";
-
-        async function sg(k) {
-            try {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/app_memoria?clave=eq.${k}`, {
-                    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
-                });
-                const data = await res.json();
-                return data.length > 0 && data[0].valor ? data[0].valor : null;
-            } catch(e) { console.error("Error cargando:", e); return null; }
-        }
-
-        async function ss(k, v) {
-            try {
-                await fetch(`${SUPABASE_URL}/rest/v1/app_memoria`, {
-                    method: 'POST',
-                    headers: {
-                        "apikey": SUPABASE_KEY,
-                        "Authorization": `Bearer ${SUPABASE_KEY}`,
-                        "Content-Type": "application/json",
-                        "Prefer": "resolution=merge-duplicates"
-                    },
-                    body: JSON.stringify({ clave: k, valor: v })
-                });
-            } catch(e) { console.error("Error guardando:", e); }
-        }
-
-        // ── 2. CONSTANTES ORIGINALES DE CLAUDE ───────────────────────────────
-        const DR = {
-          RGS:{color:"#22c55e",bg:"#dcfce7"},
-          ART:{color:"#06b6d4",bg:"#cffafe"},
-          MSS:{color:"#a855f7",bg:"#f3e8ff"},
-          PPJ:{color:"#eab308",bg:"#fef9c3"},
-        };
+        // ── 1. CONSTANTES DE LA APP ──────────────────────────────────────────
+        const DR={RGS:{color:"#22c55e",bg:"#dcfce7"},ART:{color:"#06b6d4",bg:"#cffafe"},MSS:{color:"#a855f7",bg:"#f3e8ff"},PPJ:{color:"#eab308",bg:"#fef9c3"}};
         const DK=["mon","tue","wed","thu","fri"];
         const DN=["Lunes","Martes","Miercoles","Jueves","Viernes"];
-        const LT=[
-          {c:"VAC",l:"Vacaciones"},{c:"VAA",l:"Vacaciones anio anterior"},
-          {c:"DLD",l:"Dias libre disposicion"},{c:"CON",l:"Congreso"},
-          {c:"FOR",l:"Formacion"},{c:"ENF",l:"Enfermedad"},{c:"AUS",l:"Otra ausencia"},
-        ];
+        const LT=[{c:"VAC",l:"Vacaciones"},{c:"VAA",l:"Vacaciones anio anterior"},{c:"DLD",l:"Dias libre disposicion"},{c:"CON",l:"Congreso"},{c:"FOR",l:"Formacion"},{c:"ENF",l:"Enfermedad"},{c:"AUS",l:"Otra ausencia"}];
         const MES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
         const AL={E47:"Endoscopia S47",E46:"Endoscopia S46",C42:"Consulta C42",C43:"Consulta C43",CEN:"Capsula Endoscopica",HDD:"Hospital de Dia",VIB:"VIB",C4X:"Consulta Extra C4X"};
-        const AG={E47:"endo",E46:"endo",C42:"con",C43:"con",CEN:"con",HDD:"hdd",VIB:"vib"};
 
+        // ── 2. HELPERS ───────────────────────────────────────────────────────
         function ld(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate());}
         function p2(n){return String(n).padStart(2,"0");}
         function pl(s){var a=s.split("-").map(Number);return new Date(a[0],a[1]-1,a[2],12,0,0);}
         function mon(d){var x=new Date(d),w=x.getDay();x.setDate(x.getDate()-(w===0?6:w-1));return x;}
-        function wd(m){return DK.map(function(_,i){var d=new Date(m);d.setDate(d.getDate()+i);return d;});}
+        function wkDates(m){return DK.map(function(_,i){var d=new Date(m);d.setDate(d.getDate()+i);return d;});}
         function fmtD(d){return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit"});}
         function isFTOM(d){return new Date(d).getDay()===4&&new Date(d).getDate()<=7;}
         function mwks(yr,mo){
@@ -104,31 +66,53 @@
           var b={
             mon:{am:{E47:"RGS",E46:"PPJ",C43:"MSS",HDD:"ART",VIB:"ART"},pm:{C42:"ART",C43:"PPJ",E47:null,E46:null}},
             tue:{am:{E47:"ART",E46:"MSS",C43:"RGS",HDD:"PPJ",VIB:"PPJ"},pm:{C43:"MSS",E47:null,E46:null}},
-            wed:{am:{E47:"PPJ",E46:"RGS",C43:"ART",HDD:"MSS",VIB:"MSS"},pm:{C42:null,E47:null,E46:null}},
+            wed:{am:{E47:"PPJ",E46:"RGS",C43:"ART",HDD:"MSS",VIB:"MSS"},pm:{C42:"RGS",E47:null,E46:null}},
             thu:{am:{E47:"MSS",E46:"ART",C43:"PPJ",HDD:"RGS",VIB:"RGS"},pm:{}},
-            fri:{am:A?{E47:null,E46:"MSS",CEN:"ART",C42:"RGS",C43:"PPJ",VIB:null}:{E47:"PPJ",E46:"RGS",CEN:"ART",C42:"ART",C43:"MSS",VIB:null},pm:{}},
+            fri:{am:A?{E47:"MSS",E46:"ART",CEN:"ART",C42:"RGS",C43:"PPJ",VIB:null}:{E47:"PPJ",E46:"RGS",CEN:"ART",C42:"ART",C43:"MSS",VIB:null},pm:{}},
           };
           return b[dk]||{am:{},pm:{}};
         }
-        function getSess(dk,date,ds,wt){
-          var ov=ds[ld(date)]||{},ftom=isFTOM(date),out=[];
+        function getSess(dk,date,dayStates,wt){
+          var ds=ld(date),ov=dayStates[ds]||{},ftom=isFTOM(date),out=[];
           function mk(id,label,time,type,opt){
             out.push({id:id,label:label,time:time,type:type,opt:!!opt,active:ov.sessions&&ov.sessions[id]===false?false:true,docs:(ov.sessionDoctors&&ov.sessionDoctors[id])||[]});
           }
-          if(dk==="wed"){
-            mk("SSD_w","Sesion Serv. Digestivo","8:00-9:30","session");
-            mk("CMT","Comite Tumores","8:15-9:00","committee");
-            mk("CDF","Comite Farmacia","8:00-9:00","committee",1);
-            mk("CDN","Comite Nutricion","8:15-9:00","committee",1);
-            mk("CDD","Comite Disfagia","Puntual","committee",1);
-            mk("SMI","Sesion Med. Interna","13:30-14:30","session");
-          }
+          if(dk==="wed"){mk("SSD_w","Sesion Serv. Digestivo","8:00-9:30","session");mk("CMT","Comite Tumores","8:15-9:00","committee");mk("CDF","Comite Farmacia","8:00-9:00","committee",1);mk("CDN","Comite Nutricion","8:15-9:00","committee",1);mk("CDD","Comite Disfagia","Puntual","committee",1);mk("SMI","Sesion Med. Interna","13:30-14:30","session");}
           if(dk==="thu"){mk("SSD","Sesion Serv. Digestivo","8:00-9:00","session");if(ftom)mk("SCH","Sesion Clinica Hosp.","8:00-9:00","session");}
-          if(dk==="fri"){mk("SSD_f","Sesion Serv. Digestivo","8:00-9:00","session");if(wt==="A")mk("SEC","Sesion EII Clinic","8:00-9:00","session");}
+          if(dk==="fri"){mk("SSD_f","Sesion Serv. Digestivo","8:00-9:00","session");mk("SEC","Sesion EII Clinic","8:00-9:00","session");}
           return out;
         }
 
-        // ── 3. APLICACIÓN PRINCIPAL ──────────────────────────────────────────
+        // ── 3. CONEXIÓN A SUPABASE (Reemplazando window.storage) ─────────────
+        const SUPABASE_URL = "https://sgluzymiiejsgfcjzcjy.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_nlmxFYNw-uNjN8nazf0UxA_KWSnsM_3";
+
+        async function sg(k) {
+            try {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/app_memoria?clave=eq.${k}`, {
+                    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+                });
+                const data = await res.json();
+                return data.length > 0 && data[0].valor ? data[0].valor : null;
+            } catch(e) { console.error("Error cargando:", e); return null; }
+        }
+
+        async function ss(k, v) {
+            try {
+                await fetch(`${SUPABASE_URL}/rest/v1/app_memoria`, {
+                    method: 'POST',
+                    headers: {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": `Bearer ${SUPABASE_KEY}`,
+                        "Content-Type": "application/json",
+                        "Prefer": "resolution=merge-duplicates"
+                    },
+                    body: JSON.stringify({ clave: k, valor: v })
+                });
+            } catch(e) { console.error("Error guardando:", e); }
+        }
+
+        // ── 4. APLICACIÓN PRINCIPAL ──────────────────────────────────────────
         function App(){
           var now=new Date();
           var [vm,setVm]=useState("week");
@@ -140,7 +124,7 @@
           var [lvs,setLvs]=useState([]);
           var [fes,setFes]=useState([]);
           var [sts,setSts]=useState({});
-          var [si,setSi]=useState(false);
+          var [saveInd,setSaveInd]=useState(false);
           var [fil,setFil]=useState({doc:"all",slot:"all",act:"all",sess:true,com:true});
           var [tab,setTab]=useState("dashboard");
           var [slm,setSlm]=useState(false);
@@ -150,9 +134,11 @@
           var [sexp,setSexp]=useState(false);
           var [alts,setAlts]=useState([]);
           var [incs,setIncs]=useState([]);
-          var sf2=function(k,v){setFil(function(p){return Object.assign({},p,{[k]:v});});};
-          var tmr=useRef(null);
+          var dashRef=useRef(null);
+          var stimer=useRef(null);
           var ldd=useRef(false);
+
+          function sf2(k,v){setFil(function(p){return Object.assign({},p,{[k]:v});});}
 
           useEffect(function(){
             if(ldd.current)return;ldd.current=true;
@@ -166,19 +152,19 @@
           },[]);
 
           useEffect(function(){
-            clearTimeout(tmr.current);
-            tmr.current=setTimeout(async function(){
+            clearTimeout(stimer.current);
+            stimer.current=setTimeout(async function(){
               if(ldd.current) {
                 await ss("d:ab",abr);await ss("d:ds",ds);await ss("d:lv",lvs);await ss("d:fe",fes);await ss("d:st",sts);
-                setSi(true);setTimeout(function(){setSi(false);},1500);
+                setSaveInd(true);setTimeout(function(){setSaveInd(false);},1500);
               }
             },1000);
-            return function(){clearTimeout(tmr.current);};
+            return function(){clearTimeout(stimer.current);};
           },[abr,ds,lvs,fes,sts]);
 
           var gwt=useCallback(function(s){return calcWT(abr,s);},[abr]);
           var wt=useMemo(function(){return gwt(ld(cm));},[cm,gwt]);
-          var wds=useMemo(function(){return wd(cm);},[cm]);
+          var wds=useMemo(function(){return wkDates(cm);},[cm]);
           var mwk=useMemo(function(){return mwks(cy,cmo);},[cy,cmo]);
 
           var glv=useCallback(function(doc,date){var s=ld(date);return lvs.find(function(l){return l.doctor===doc&&l.startDate<=s&&l.endDate>=s;});},[lvs]);
@@ -196,7 +182,7 @@
 
           useEffect(function(){
             var na=[],ni=[];
-            var dates=vm==="month"?mwk.reduce(function(a,m){return a.concat(wd(m));},[]):wds;
+            var dates=vm==="month"?mwk.reduce(function(a,m){return a.concat(wkDates(m));},[]):wds;
             dates.forEach(function(date,ai){
               var di=ai%5;if(ife(date))return;
               var s=ld(date),dk=DK[di],ag=ga(dk,date);
@@ -212,10 +198,10 @@
             setAlts(na);setIncs(ni);
           },[ds,wds,mwk,lvs,fes,sts,vm,ga,ife,gst]);
 
-          function nw(d){setCm(function(p){var n=new Date(p);n.setDate(n.getDate()+d*7);return n;});}
-          function nm(d){var m=cmo+d,y=cy;if(m<0){m=11;y--;}if(m>11){m=0;y++;}setCmo(m);setCy(y);}
+          function nwk(d){setCm(function(p){var n=new Date(p);n.setDate(n.getDate()+d*7);return n;});}
+          function nmo(d){var m=cmo+d,y=cy;if(m<0){m=11;y--;}if(m>11){m=0;y++;}setCmo(m);setCy(y);}
           function tSess(s,id){setDs(function(p){var d=p[s]||{},ss2=Object.assign({},d.sessions||{});ss2[id]=ss2[id]===false?undefined:false;return Object.assign({},p,{[s]:Object.assign({},d,{sessions:ss2})});});}
-          function tSDoc(s,id,doc){setDs(function(p){var d=p[s]||{},docs=(d.sessionDoctors&&d.sessionDoctors[id])||[];var nd=docs.includes(doc)?docs.filter(function(x){return x!==doc;}):[].concat(docs,[doc]);return Object.assign({},p,{[s]:Object.assign({},d,{sessionDoctors:Object.assign({},d.sessionDoctors||{},{[id]:nd})})});});}
+          function tSDoc(s,id,doc){setDs(function(p){var d=p[s]||{},docs=(d.sessionDoctors&&d.sessionDoctors[id])||[];var nd=docs.includes(doc)?docs.filter(function(x){return x!==doc;}):[].concat(docs,[doc]);var sd=Object.assign({},d.sessionDoctors||{});sd[id]=nd;return Object.assign({},p,{[s]:Object.assign({},d,{sessionDoctors:sd})});});}
           function sDr(s,slot,act,doc){setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{[slot]:Object.assign({},d[slot]||{},{[act]:doc})})});});}
           function tC4(s){setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{c4x:!d.c4x})});});}
 
@@ -227,65 +213,77 @@
             document.body.appendChild(a);a.click();
             setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},200);
           }
-          function expLv(){var rows=[["Medico","Tipo","Inicio","Fin","Validado","Informado"]];lvs.forEach(function(l){rows.push([l.doctor,l.type,l.startDate,l.endDate,l.validated?"Si":"No",l.informed?"Si":"No"]);});dlCSV(rows,"ausencias.csv");}
-          function expIn(){var rows=[["Fecha","Dia","Turno","Actividad","Estado"]];incs.forEach(function(i){rows.push([i.date,i.day,i.slot==="am"?"Manana":"Tarde",AL[i.act]||i.act,i.status==="suspended"?"Suspendida":"Sin cobertura"]);});dlCSV(rows,"incidencias.csv");}
+          function expLv(){
+            var rows=[["Medico","Tipo","Inicio","Fin","Validado","Informado","Anulada","Motivo anulacion"]];
+            lvs.forEach(function(l){rows.push([l.doctor,l.type,l.startDate,l.endDate,l.validated?"Si":"No",l.informed?"Si":"No",l.cancelled?"Si":"No",l.cancelReason||""]);});
+            dlCSV(rows,"ausencias.csv");
+          }
+          function expIn(){
+            var rows=[["Fecha","Dia","Turno","Actividad","Medico titular","Estado"]];
+            incs.forEach(function(i){
+              var date=pl(i.date);
+              var ag=ga(DK[DN.indexOf(i.day)],date);
+              var slotObj=i.slot==="am"?ag.am:ag.pm;
+              var doc=slotObj&&slotObj[i.act];
+              var docLabel=(!doc||doc===null)?"Sin designar":doc==="__LEAVE__"?"Ausente":doc;
+              rows.push([i.date,i.day,i.slot==="am"?"Manana":"Tarde",AL[i.act]||i.act,docLabel,i.status==="suspended"?"Suspendida":"Sin cobertura"]);
+            });
+            dlCSV(rows,"incidencias.csv");
+          }
+          
+          var [imgVisor,setImgVisor]=useState(null);
+          var [imgLoading,setImgLoading]=useState(false);
+
+          function runCapture(target,label){
+            setImgLoading(true);
+            window.html2canvas(target,{scale:2,useCORS:true,backgroundColor:"#f0f4f8",scrollX:0,scrollY:0,width:target.scrollWidth,height:target.scrollHeight,windowWidth:target.scrollWidth,windowHeight:target.scrollHeight}).then(function(canvas){
+              var url=canvas.toDataURL("image/png");
+              setImgVisor({url:url,label:label});
+              setImgLoading(false);
+            }).catch(function(err){setImgLoading(false);alert("Error capturando: "+err.message);});
+          }
+          function loadH2C(cb){
+            if(window.html2canvas){cb();return;}
+            var scr=document.createElement("script");
+            scr.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+            scr.onload=cb;
+            scr.onerror=function(){setImgLoading(false);alert("No se pudo cargar html2canvas.");};
+            document.head.appendChild(scr);
+          }
           function expPDF(){
-            var css="body{font-family:Arial,sans-serif;font-size:11px;margin:16px}h1{font-size:15px;margin:0 0 4px}.sub{color:#64748b;font-size:10px;margin-bottom:12px}table{border-collapse:collapse;width:100%;margin-bottom:16px}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:left;font-size:10px}td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top;font-size:10px}tr:nth-child(even) td{background:#f8fafc}.wh{background:#1e293b;color:#fff;padding:5px 8px;font-size:11px;font-weight:bold;margin:10px 0 4px;border-radius:4px}.RGS{background:#dcfce7;color:#166534;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.ART{background:#cffafe;color:#0e7490;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.MSS{background:#f3e8ff;color:#7e22ce;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.PPJ{background:#fef9c3;color:#854d0e;padding:1px 5px;border-radius:4px;font-weight:bold;font-size:9px}.lv{color:#94a3b8;font-style:italic}.fes{background:#fef9c3;color:#854d0e;font-weight:bold}.bA{background:#3b82f6;color:#fff;padding:1px 5px;border-radius:4px;font-size:9px}.bB{background:#8b5cf6;color:#fff;padding:1px 5px;border-radius:4px;font-size:9px}.sus{background:#fef2f2;color:#991b1b;padding:1px 5px;border-radius:4px;font-size:9px}.noc{background:#fff7ed;color:#9a3412;padding:1px 5px;border-radius:4px;font-size:9px}";
-            var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Dashboard</title><style>"+css+"</style></head><body><h1>Dashboard - Servicio de Digestivo</h1><div class='sub'>"+new Date().toLocaleDateString("es-ES",{weekday:"long",year:"numeric",month:"long",day:"numeric"})+"</div>";
-            function pw(slice,wtype,lbl){
-              html+="<div class='wh'>"+lbl+" <span class='b"+wtype+"'>Sem. "+wtype+"</span></div><table><tr><th>Dia</th><th>Actividad</th><th>Turno</th><th>Medico</th></tr>";
-              slice.forEach(function(date,idx){
-                var s=ld(date),dk=DK[idx];
-                if(ife(date)){html+="<tr><td><b>"+DN[idx]+"</b><br>"+s+"</td><td colspan='3' class='fes'>FESTIVO</td></tr>";return;}
-                var ag=ga(dk,date),acts=[];
-                Object.keys(ag.am).forEach(function(k){acts.push({act:k,doc:ag.am[k],slot:"am"});});
-                Object.keys(ag.pm).forEach(function(k){acts.push({act:k,doc:ag.pm[k],slot:"pm"});});
-                acts.forEach(function(it,i){
-                  var st=gst(s,it.slot,it.act);
-                  var dh=st==="suspended"?"<span class='sus'>Suspendida</span>":st==="nocoverage"?"<span class='noc'>Sin cobertura</span>":(!it.doc||it.doc===null)?"<span class='lv'>Sin designar</span>":it.doc==="__LEAVE__"?"<span class='lv'>Ausente</span>":"<span class='"+it.doc+"'>"+it.doc+"</span>";
-                  var dc=i===0?"<td rowspan='"+acts.length+"'><b>"+DN[idx]+"</b><br>"+s+"</td>":"";
-                  html+="<tr>"+dc+"<td>"+(AL[it.act]||it.act)+"</td><td>"+(it.slot==="am"?"Manana":"Tarde")+"</td><td>"+dh+"</td></tr>";
-                });
-              });
-              html+="</table>";
-            }
-            if(vm==="month"){mwk.forEach(function(m,wi){var ws=wd(m);pw(ws,gwt(ld(m)),"Semana "+(wi+1)+" "+fmtD(m)+" al "+fmtD(ws[4]));});}
-            else{pw(wds,wt,fmtD(wds[0])+" al "+fmtD(wds[4]));}
-            html+="</body></html>";
-            var win=window.open("","_blank","width=900,height=700");
-            if(!win){alert("Permite ventanas emergentes para exportar.");return;}
-            win.document.write(html);win.document.close();win.focus();
-            setTimeout(function(){win.print();},600);
+            var target=dashRef.current;
+            if(!target){alert("No hay dashboard visible.");return;}
+            var label=vm==="month"?MES[cmo]+"-"+cy:"semana-"+ld(wds[0]);
+            loadH2C(function(){runCapture(target,label);});
           }
 
-          var sh={ga:ga,gs:getSess,ds:ds,ife:ife,gst:gst,sst:sst,sDr:sDr,tSess:tSess,tSDoc:tSDoc,tC4:tC4,fil:fil,gwt:gwt,glv:glv};
+          var sh={ga:ga,gs:getSess,ds:ds,ife:ife,gst:gst,sst:sst,sDr:sDr,tSess:tSess,tSDoc:tSDoc,tC4:tC4,fil:fil,gwt:gwt,glv:glv,dashRef:dashRef};
 
           return (
             <div style={S.app}>
               <Hdr vm={vm} setVm={setVm} cm={cm} wt={wt} cmo={cmo} cy={cy} wds={wds}
-                onPW={function(){nw(-1);}} onNW={function(){nw(1);}} onPM={function(){nm(-1);}} onNM={function(){nm(1);}}
+                onPW={function(){nwk(-1);}} onNW={function(){nwk(1);}} onPM={function(){nmo(-1);}} onNM={function(){nmo(1);}}
                 onT={function(){setCm(mon(now));setCmo(now.getMonth());setCy(now.getFullYear());}}
                 tab={tab} setTab={setTab} ac={alts.length} ic={incs.length}
                 fil={fil} sf2={sf2} sexp={sexp} setSexp={setSexp}
                 expLv={expLv} expIn={expIn} expPDF={expPDF}
-                onAB={function(){setSabm(true);}} onFes={function(){setSfm(true);}} si={si}
+                onAB={function(){setSabm(true);}} onFes={function(){setSfm(true);}} si={saveInd}
               />
               {tab==="dashboard"&&(vm==="week"?<WView wds={wds} wt={wt} {...sh}/>:<MView mwk={mwk} cmo={cmo} {...sh}/>)}
               {tab==="alerts"&&<AView alts={alts}/>}
               {tab==="incidents"&&<IView incs={incs} onExp={expIn}/>}
               {tab==="absview"&&<AbView wds={wds} lvs={lvs} ife={ife} mwk={mwk} vm={vm}/>}
               {tab==="leaves"&&<LView lvs={lvs} setLvs={setLvs} fes={fes} onAdd={function(){setEl(null);setSlm(true);}} onEdit={function(l){setEl(l);setSlm(true);}}/>}
-              {slm&&<LModal lv={el}
-                onSave={function(l){if(l.id)setLvs(function(p){return p.map(function(x){return x.id===l.id?l:x;});});else setLvs(function(p){return p.concat([Object.assign({},l,{id:""+Date.now()})]);});setSlm(false);}}
-                onDel={function(id){setLvs(function(p){return p.filter(function(x){return x.id!==id;});});setSlm(false);}}
-                onClose={function(){setSlm(false);}}/>}
+              {slm&&<LModal lv={el} onSave={function(l){if(l.id)setLvs(function(p){return p.map(function(x){return x.id===l.id?l:x;});});else setLvs(function(p){return p.concat([Object.assign({},l,{id:""+Date.now()})]);});setSlm(false);}} onDel={function(id){setLvs(function(p){return p.filter(function(x){return x.id!==id;});});setSlm(false);}} onClose={function(){setSlm(false);}}/>}
               {sabm&&<ABModal abr={abr} onSave={function(d,t){var tm=ld(mon(new Date()));var sd=d<tm?tm:d;setAbr(function(p){return p.filter(function(r){return r.date!==sd;}).concat([{date:sd,type:t}]).sort(function(a,b){return a.date.localeCompare(b.date);});});setSabm(false);}} onClose={function(){setSabm(false);}}/>}
               {sfm&&<FModal fes={fes} onAdd={function(d){if(!fes.includes(d))setFes(function(p){return p.concat([d]);});}} onRem={function(d){setFes(function(p){return p.filter(function(x){return x!==d;});});}} onClose={function(){setSfm(false);}}/>}
+              
+              {imgVisor&&<ImgVisor url={imgVisor.url} label={imgVisor.label} onClose={function(){setImgVisor(null);}}/>}
+              {imgLoading&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,flexDirection:"column",gap:16}}><div style={{width:48,height:48,border:"4px solid rgba(255,255,255,0.2)",borderTop:"4px solid #fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><span style={{color:"#fff",fontSize:15,fontWeight:600}}>Generando imagen...</span><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>}
             </div>
           );
         }
 
-        // ── 4. TODOS TUS COMPONENTES VISUALES INTACTOS ───────────────────────
         function Hdr(p){
           var onPrev=p.vm==="week"?p.onPW:p.onPM, onNext=p.vm==="week"?p.onNW:p.onNM;
           var lbl=p.vm==="week"?fmtD(p.cm)+" - "+fmtD(p.wds[4]):MES[p.cmo]+" "+p.cy;
@@ -294,20 +292,17 @@
               <div style={S.hTop}>
                 <div style={S.hBrand}>
                   <div style={S.bMark}>D</div>
-                  <div>
-                    <div style={S.bTitle}>Servicio de Digestivo</div>
-                    <div style={S.bSub}>Sistema de Organizacion</div>
-                  </div>
-                  {p.si && <span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",padding:"2px 8px",borderRadius:10,marginLeft:8}}>Guardado</span>}
+                  <div><div style={S.bTitle}>Servicio de Digestivo</div><div style={S.bSub}>Sistema de Organizacion</div></div>
+                  {p.si&&<span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",padding:"2px 8px",borderRadius:10,marginLeft:8}}>Guardado</span>}
                 </div>
                 <div style={S.hActs}>
                   <button style={S.aBtn} onClick={p.onFes}>FES</button>
                   <button style={S.aBtn} onClick={p.onAB}>A/B</button>
                   <div style={{position:"relative"}}>
                     <button style={S.aBtn} onClick={function(){p.setSexp(function(v){return !v;});}}>Exportar</button>
-                    {p.sexp && (
+                    {p.sexp&&(
                       <div style={S.ddMenu}>
-                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expPDF();}}>PDF</button>
+                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expPDF();}}>Captura PNG</button>
                         <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expLv();}}>Ausencias CSV</button>
                         <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expIn();}}>Incidencias CSV</button>
                       </div>
@@ -325,7 +320,7 @@
                   <button style={Object.assign({},S.nBtn,{fontSize:12,padding:"4px 10px"})} onClick={p.onT}>Hoy</button>
                   <button style={S.nBtn} onClick={onNext}>&#8250;</button>
                   <span style={S.wLbl}>{lbl}</span>
-                  {p.vm==="week" && <span style={Object.assign({},S.wBadge,{background:p.wt==="A"?"#3b82f6":"#8b5cf6"})}>Sem.{p.wt}</span>}
+                  {p.vm==="week"&&<span style={Object.assign({},S.wBadge,{background:p.wt==="A"?"#3b82f6":"#8b5cf6"})}>Sem.{p.wt}</span>}
                 </div>
                 <div style={S.nRight}>
                   <div style={S.tabs}>
@@ -337,7 +332,7 @@
                   </div>
                 </div>
               </div>
-              {p.tab==="dashboard" && (
+              {p.tab==="dashboard"&&(
                 <div style={S.fBar}>
                   <span style={S.fLbl}>Filtros:</span>
                   <div style={S.fGrp}>
@@ -378,22 +373,35 @@
 
         function WView(p){
           var cols=p.wds.map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={p.wt} compact={false} {...p}/>;});
-          return <div style={S.dash}><div style={S.dGrid}>{cols}</div></div>;
+          return <div ref={p.dashRef} style={S.dash}><div style={S.dGrid}>{cols}</div></div>;
         }
 
         function MView(p){
-          var lbls=DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;});
           var rows=p.mwk.map(function(m,wi){
             var wtype=p.gwt(ld(m));
-            var cols=wd(m).map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={wtype} compact={true} dimmed={date.getMonth()!==p.cmo} {...p}/>;});
+            var cols=wkDates(m).map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={wtype} compact={true} dimmed={date.getMonth()!==p.cmo} {...p}/>;});
             return (
-              <div key={ld(m)} style={S.mWRow}>
-                <div style={S.mWLbl}><span style={S.mWN}>S{wi+1}</span><span style={Object.assign({},S.wBadge,{fontSize:9,padding:"1px 5px",background:wtype==="A"?"#3b82f6":"#8b5cf6"})}>{wtype}</span></div>
-                <div style={S.mWGrid}>{cols}</div>
+              <div key={ld(m)} style={{display:"grid",gridTemplateColumns:"42px 1fr 1fr 1fr 1fr 1fr",gap:6,marginBottom:6}}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                  <span style={S.mWN}>S{wi+1}</span>
+                  <span style={Object.assign({},S.wBadge,{fontSize:9,padding:"1px 5px",background:wtype==="A"?"#3b82f6":"#8b5cf6"})}>{wtype}</span>
+                </div>
+                {cols}
               </div>
             );
           });
-          return <div style={S.mCont}><div style={S.mDayLbls}>{lbls}</div>{rows}</div>;
+          var lblRow=(
+            <div style={{display:"grid",gridTemplateColumns:"42px 1fr 1fr 1fr 1fr 1fr",gap:6,marginBottom:4}}>
+              <div/>
+              {DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;})}
+            </div>
+          );
+          return (
+            <div ref={p.dashRef} style={S.mCont}>
+              {lblRow}
+              {rows}
+            </div>
+          );
         }
 
         function DCol(p){
@@ -409,32 +417,76 @@
           var clin=sess.filter(function(x){return x.type==="session";});
           var aP={s:s,gst:p.gst,sst:p.sst,sDr:p.sDr,df:p.fil.doc,compact:compact,date:date,glv:p.glv};
           var colSt=Object.assign({},S.dCol,compact?S.dColC:{},dimmed?{opacity:0.4}:{},isT?{border:"2px solid #3b82f6"}:{});
-
           if(fesd){
-            return <div style={colSt}><DHdr date={date} dk={dk} compact={compact}/><div style={S.fesB}><span style={S.fesL}>{compact?"FES":"FESTIVO"}</span></div></div>;
+            return (
+              <div style={colSt}>
+                <DHdr date={date} dk={dk} compact={compact}/>
+                <div style={S.fesB}><span style={S.fesL}>{compact?"FES":"FESTIVO"}</span></div>
+              </div>
+            );
           }
           return (
             <div style={colSt}>
               <DHdr date={date} dk={dk} compact={compact}/>
-              {p.fil.com&&coms.length>0&&(<div style={S.sec}>{coms.map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;})}</div>)}
+              {p.fil.com&&coms.length>0&&(
+                <div style={S.sec}>
+                  {coms.map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;}) }
+                </div>
+              )}
               {showAM&&(
                 <div>
                   {!compact&&<div style={S.secLbl}>Manana</div>}
                   <div style={S.sec}>
-                    {p.fil.sess&&clin.filter(function(x){return x.time!=="13:30-14:30";}).map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;})}
-                    {(p.fil.act==="all"||p.fil.act==="endo")&&(<div style={S.twin}>{ag.am.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.am.E47} slot="am"/>}{ag.am.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.am.E46} slot="am"/>}</div>)}
-                    {(p.fil.act==="all"||p.fil.act==="con")&&(<div style={S.twin}>{ag.am.C43!==undefined&&<AC {...aP} act="C43" lbl={dk==="fri"?(wt==="A"?"C43-HEP":"C43-ARI"):"C43"} doc={ag.am.C43} slot="am"/>}{ag.am.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="fri"?(wt==="A"?"C42-EII":"C42-HDX"):"C42"} doc={ag.am.C42} slot="am"/>}{ag.am.CEN!==undefined&&<AC {...aP} act="CEN" lbl="CEN" doc={ag.am.CEN} slot="am"/>}</div>)}
-                    {(p.fil.act==="all"||p.fil.act==="hdd"||p.fil.act==="vib")&&(<div style={S.twin}>{(p.fil.act==="all"||p.fil.act==="hdd")&&ag.am.HDD!==undefined&&<AC {...aP} act="HDD" lbl="HDD" doc={ag.am.HDD} slot="am"/>}{(p.fil.act==="all"||p.fil.act==="vib")&&ag.am.VIB!==undefined&&<AC {...aP} act="VIB" lbl="VIB" doc={ag.am.VIB} slot="am"/>}</div>)}
+                    {p.fil.sess&&clin.filter(function(x){return x.time!=="13:30-14:30";}).map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;}) }
+                    {(p.fil.act==="all"||p.fil.act==="endo")&&(
+                      <div style={S.twin}>
+                        {ag.am.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.am.E47} slot="am"/>}
+                        {ag.am.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.am.E46} slot="am"/>}
+                      </div>
+                    )}
+                    {(p.fil.act==="all"||p.fil.act==="con")&&(
+                      <div style={S.twin}>
+                        {ag.am.C43!==undefined&&<AC {...aP} act="C43" lbl={dk==="fri"?(wt==="A"?"C43-HEP":"C43-ARI"):"C43"} doc={ag.am.C43} slot="am"/>}
+                        {ag.am.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="fri"?(wt==="A"?"C42-EII":"C42-HDX"):"C42"} doc={ag.am.C42} slot="am"/>}
+                      </div>
+                    )}
+                    {dk==="fri"&&ag.am.CEN!==undefined&&ag.am.VIB!==undefined&&(p.fil.act==="all"||p.fil.act==="con"||p.fil.act==="vib")&&(
+                      <div style={S.twin}>
+                        {(p.fil.act==="all"||p.fil.act==="con")&&<AC {...aP} act="CEN" lbl="CEN" doc={ag.am.CEN} slot="am"/>}
+                        {(p.fil.act==="all"||p.fil.act==="vib")&&<AC {...aP} act="VIB" lbl="VIB" doc={ag.am.VIB} slot="am"/>}
+                      </div>
+                    )}
+                    {dk!=="fri"&&(p.fil.act==="all"||p.fil.act==="con")&&ag.am.CEN!==undefined&&(
+                      <AC {...aP} act="CEN" lbl="CEN" doc={ag.am.CEN} slot="am" full/>
+                    )}
+                    {(p.fil.act==="all"||p.fil.act==="hdd"||p.fil.act==="vib")&&dk!=="fri"&&(
+                      <div style={S.twin}>
+                        {(p.fil.act==="all"||p.fil.act==="hdd")&&ag.am.HDD!==undefined&&<AC {...aP} act="HDD" lbl="HDD" doc={ag.am.HDD} slot="am"/>}
+                        {(p.fil.act==="all"||p.fil.act==="vib")&&ag.am.VIB!==undefined&&<AC {...aP} act="VIB" lbl="VIB" doc={ag.am.VIB} slot="am"/>}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-              {showPM&&p.fil.sess&&clin.filter(function(x){return x.time==="13:30-14:30";}).map(function(x){return <div key={x.id} style={{padding:"0 6px 4px"}}><SR s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/></div>;})}
+              {showPM&&p.fil.sess&&clin.filter(function(x){return x.time==="13:30-14:30";}).map(function(x){
+                return <div key={x.id} style={{padding:"0 6px 4px"}}><SR s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/></div>;
+              }) }
               {showPM&&hasPM&&(
                 <div>
                   {!compact&&<div style={S.secLbl}>Tarde</div>}
                   <div style={S.sec}>
-                    {(p.fil.act==="all"||p.fil.act==="endo")&&(<div style={S.twin}>{ag.pm.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.pm.E47} slot="pm" manual/>}{ag.pm.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.pm.E46} slot="pm" manual/>}</div>)}
-                    {(p.fil.act==="all"||p.fil.act==="con")&&(<div style={S.twin}>{ag.pm.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="wed"?"C42-EII":"C42"} doc={ag.pm.C42} slot="pm"/>}{ag.pm.C43!==undefined&&<AC {...aP} act="C43" lbl="C43" doc={ag.pm.C43} slot="pm"/>}</div>)}
+                    {(p.fil.act==="all"||p.fil.act==="endo")&&(
+                      <div style={S.twin}>
+                        {ag.pm.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.pm.E47} slot="pm" manual/>}
+                        {ag.pm.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.pm.E46} slot="pm" manual/>}
+                      </div>
+                    )}
+                    {(p.fil.act==="all"||p.fil.act==="con")&&(
+                      <div style={S.twin}>
+                        {ag.pm.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="wed"?"C42-EII":"C42"} doc={ag.pm.C42} slot="pm"/>}
+                        {ag.pm.C43!==undefined&&<AC {...aP} act="C43" lbl="C43" doc={ag.pm.C43} slot="pm"/>}
+                      </div>
+                    )}
                     {c4x&&(p.fil.act==="all"||p.fil.act==="con")&&<AC {...aP} act="C4X" lbl="C4X+" doc={ag.pm.C4X||null} slot="pm" full/>}
                     {!compact&&<button style={S.c4Btn} onClick={function(){p.tC4(s);}}>{c4x?"Quitar C4X":"Aniadir C4X"}</button>}
                   </div>
@@ -473,7 +525,10 @@
                 <span style={S.sIcon}>{s.type==="committee"?"C":"S"}</span>
                 <span style={Object.assign({},S.sLbl,compact?{fontSize:9}:{})}>{compact?s.id:s.label}</span>
                 {!compact&&<span style={S.sTime}>{s.time}</span>}
-                <button style={Object.assign({},S.togBtn,{background:isOn?"#22c55e":"#94a3b8",marginLeft:"auto"})} onClick={function(e){e.stopPropagation();tS(ds,s.id);}}>{isOn?"ON":"OFF"}</button>
+                <button style={Object.assign({},S.togBtn,{background:isOn?"#22c55e":"#94a3b8",marginLeft:"auto"})}
+                  onClick={function(e){e.stopPropagation();tS(ds,s.id);}}>
+                  {isOn?"ON":"OFF"}
+                </button>
               </div>
               {isOn&&!compact&&<div style={S.sDocs}>{chips}</div>}
             </div>
@@ -492,13 +547,19 @@
           else if(!doc||doc===null)bg="#fffbeb";
           else if(doc==="__LEAVE__")bg="#f1f5f9";
           else if(di){bg=di.bg;bc=di.color+"55";}
-
-          var menuItems=avail.map(function(d){return <button key={d} style={Object.assign({},S.aMItem,{background:DR[d].bg})} onClick={function(){sDr(s,slot,act,d);setSm(false);}}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span></button>;});
-          var absentItems=Object.keys(DR).filter(function(d){return!avail.includes(d);}).map(function(d){return <div key={d} style={Object.assign({},S.aMItem,{background:"#f1f5f9",opacity:0.5,display:"flex",alignItems:"center",gap:6})}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span><span style={{fontSize:9,color:"#94a3b8"}}>Ausente</span></div>;});
-
+          var menuItems=avail.map(function(d){
+            return <button key={d} style={Object.assign({},S.aMItem,{background:DR[d].bg})} onClick={function(){sDr(s,slot,act,d);setSm(false);}}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span></button>;
+          });
+          var absentItems=Object.keys(DR).filter(function(d){return!avail.includes(d);}).map(function(d){
+            return <div key={d} style={Object.assign({},S.aMItem,{background:"#f1f5f9",opacity:0.5,display:"flex",alignItems:"center",gap:6})}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span><span style={{fontSize:9,color:"#94a3b8"}}>Ausente</span></div>;
+          });
           return (
-            <div style={Object.assign({},S.aCell,full?{gridColumn:"1/-1"}:{},compact?S.aCellC:{},isF?{opacity:0.2}:{},{background:bg,borderColor:bc})} onClick={function(){setSm(function(v){return !v;});}}>
-              <div style={{display:"flex",alignItems:"center",gap:3}}><span style={Object.assign({},S.aName,compact?{fontSize:9}:{})}>{lbl}</span>{manual&&!compact&&<span style={S.mBadge}>m</span>}</div>
+            <div style={Object.assign({},S.aCell,full?{gridColumn:"1/-1"}:{},compact?S.aCellC:{},isF?{opacity:0.2}:{},{background:bg,borderColor:bc})}
+              onClick={function(){setSm(function(v){return !v;});}}>
+              <div style={{display:"flex",alignItems:"center",gap:3}}>
+                <span style={Object.assign({},S.aName,compact?{fontSize:9}:{})}>{lbl}</span>
+                {manual&&!compact&&<span style={S.mBadge}>m</span>}
+              </div>
               {!compact&&!st&&di&&<div style={Object.assign({},S.dChipD,{borderColor:di.color})}><span style={{color:di.color,fontWeight:700,fontSize:11}}>{doc}</span></div>}
               {!compact&&!st&&(!doc||doc===null)&&<div style={S.unCh}>Sin designar</div>}
               {!compact&&!st&&doc==="__LEAVE__"&&<div style={S.lvCh}>Ausente</div>}
@@ -511,11 +572,17 @@
               {compact&&st==="nocoverage"&&<span style={{fontSize:9,color:"#9a3412"}}>NC</span>}
               {sm&&(
                 <div style={S.aMenu} onClick={function(e){e.stopPropagation();}}>
-                  <div style={S.aMT}>{lbl}</div>{menuItems}{absentItems}
+                  <div style={S.aMT}>{lbl}</div>
+                  {menuItems}
+                  {absentItems}
                   <button style={S.aMG} onClick={function(){sDr(s,slot,act,null);setSm(false);}}>Sin designar</button>
                   <div style={{borderTop:"1px solid #f1f5f9",margin:"5px 0"}}/>
-                  <button style={Object.assign({},S.aMSt,{background:st==="nocoverage"?"#fff7ed":"#f8fafc",borderColor:st==="nocoverage"?"#fdba74":"#e2e8f0",color:st==="nocoverage"?"#9a3412":"#475569"})} onClick={function(){sst(s,slot,act,"nocoverage");setSm(false);}}>{st==="nocoverage"?"Quitar sin cobertura":"Sin cobertura"}</button>
-                  <button style={Object.assign({},S.aMSt,{background:st==="suspended"?"#fef2f2":"#f8fafc",borderColor:st==="suspended"?"#fca5a5":"#e2e8f0",color:st==="suspended"?"#991b1b":"#475569"})} onClick={function(){sst(s,slot,act,"suspended");setSm(false);}}>{st==="suspended"?"Quitar suspension":"Suspender"}</button>
+                  <button style={Object.assign({},S.aMSt,{background:st==="nocoverage"?"#fff7ed":"#f8fafc",borderColor:st==="nocoverage"?"#fdba74":"#e2e8f0",color:st==="nocoverage"?"#9a3412":"#475569"})} onClick={function(){sst(s,slot,act,"nocoverage");setSm(false);}}>
+                    {st==="nocoverage"?"Quitar sin cobertura":"Sin cobertura"}
+                  </button>
+                  <button style={Object.assign({},S.aMSt,{background:st==="suspended"?"#fef2f2":"#f8fafc",borderColor:st==="suspended"?"#fca5a5":"#e2e8f0",color:st==="suspended"?"#991b1b":"#475569"})} onClick={function(){sst(s,slot,act,"suspended");setSm(false);}}>
+                    {st==="suspended"?"Quitar suspension":"Suspender"}
+                  </button>
                   <button style={S.aMClose} onClick={function(){setSm(false);}}>Cerrar</button>
                 </div>
               )}
@@ -524,7 +591,9 @@
         }
 
         function AView({alts}){
-          var items=alts.filter(function(a){return a.type==="u";}).map(function(a,i){return <div key={i} style={{fontSize:13,color:"#475569",padding:"3px 0"}}>- {a.day} ({a.date}): {a.act}</div>;});
+          var items=alts.filter(function(a){return a.type==="u";}).map(function(a,i){
+            return <div key={i} style={{fontSize:13,color:"#475569",padding:"3px 0"}}>- {a.day} ({a.date}): {a.act}</div>;
+          });
           return (
             <div style={{padding:24,maxWidth:900,margin:"0 auto"}}>
               <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Alertas</h2>
@@ -539,14 +608,15 @@
           var months=[...new Set(incs.map(function(i){return i.date.slice(0,7);}))].sort();
           var fil=incs.filter(function(i){return(fSt==="all"||i.status===fSt)&&(fMo==="all"||i.date.startsWith(fMo));});
           var rows=fil.map(function(i,idx){
-            var slbl=i.slot==="am"?"Manana":"Tarde", slbg=i.slot==="am"?"#fef9c3":"#dbeafe", slco=i.slot==="am"?"#854d0e":"#1e40af";
-            var stlbl=i.status==="suspended"?"Suspendida":"Sin cobertura", stbg=i.status==="suspended"?"#fef2f2":"#fff7ed", stco=i.status==="suspended"?"#991b1b":"#9a3412", stbc=i.status==="suspended"?"#fca5a5":"#fdba74";
+            var slbg=i.slot==="am"?"#fef9c3":"#dbeafe",slco=i.slot==="am"?"#854d0e":"#1e40af";
+            var stbg=i.status==="suspended"?"#fef2f2":"#fff7ed",stco=i.status==="suspended"?"#991b1b":"#9a3412",stbc=i.status==="suspended"?"#fca5a5":"#fdba74";
             return (
               <div key={idx} style={{display:"grid",gridTemplateColumns:"120px 100px 90px 1fr 150px",borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#fff":"#fafafa"}}>
-                <div style={{padding:"9px 14px",fontSize:12,color:"#475569"}}>{i.date}</div><div style={{padding:"9px 14px",fontSize:12,fontWeight:500}}>{i.day}</div>
-                <div style={{padding:"9px 14px"}}><span style={{background:slbg,color:slco,padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600}}>{slbl}</span></div>
+                <div style={{padding:"9px 14px",fontSize:12,color:"#475569"}}>{i.date}</div>
+                <div style={{padding:"9px 14px",fontSize:12,fontWeight:500}}>{i.day}</div>
+                <div style={{padding:"9px 14px"}}><span style={{background:slbg,color:slco,padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600}}>{i.slot==="am"?"Manana":"Tarde"}</span></div>
                 <div style={{padding:"9px 14px",fontSize:12}}>{AL[i.act]||i.act}</div>
-                <div style={{padding:"9px 14px"}}><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:stbg,color:stco,border:"1px solid "+stbc}}>{stlbl}</span></div>
+                <div style={{padding:"9px 14px"}}><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:stbg,color:stco,border:"1px solid "+stbc}}>{i.status==="suspended"?"Suspendida":"Sin cobertura"}</span></div>
               </div>
             );
           });
@@ -558,9 +628,9 @@
                 <button style={S.addBtn} onClick={onExp}>Exportar CSV</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
-                <div style={{background:"#eef2ff",borderRadius:10,padding:"14px 18px",border:"1px solid #6366f133"}}><div style={{fontSize:22,fontWeight:800,color:"#6366f1"}}>{fil.length}</div><div style={{fontSize:12,color:"#64748b"}}>Total</div></div>
-                <div style={{background:"#fef2f2",borderRadius:10,padding:"14px 18px",border:"1px solid #991b1b33"}}><div style={{fontSize:22,fontWeight:800,color:"#991b1b"}}>{fil.filter(function(i){return i.status==="suspended";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Suspendidas</div></div>
-                <div style={{background:"#fff7ed",borderRadius:10,padding:"14px 18px",border:"1px solid #9a341233"}}><div style={{fontSize:22,fontWeight:800,color:"#9a3412"}}>{fil.filter(function(i){return i.status==="nocoverage";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Sin cobertura</div></div>
+                <div style={{background:"#eef2ff",borderRadius:10,padding:"14px 18px"}}><div style={{fontSize:22,fontWeight:800,color:"#6366f1"}}>{fil.length}</div><div style={{fontSize:12,color:"#64748b"}}>Total</div></div>
+                <div style={{background:"#fef2f2",borderRadius:10,padding:"14px 18px"}}><div style={{fontSize:22,fontWeight:800,color:"#991b1b"}}>{fil.filter(function(i){return i.status==="suspended";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Suspendidas</div></div>
+                <div style={{background:"#fff7ed",borderRadius:10,padding:"14px 18px"}}><div style={{fontSize:22,fontWeight:800,color:"#9a3412"}}>{fil.filter(function(i){return i.status==="nocoverage";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Sin cobertura</div></div>
               </div>
               <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
                 <button style={Object.assign({},S.fChip,{background:fSt==="all"?"#6366f1":"#f1f5f9",color:fSt==="all"?"#fff":"#475569",borderColor:fSt==="all"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("all");}}>Todas</button>
@@ -581,7 +651,7 @@
 
         function AbView({wds,lvs,ife,mwk,vm}){
           var [dm,setDm]=useState("dashboard");
-          var allD=vm==="month"?mwk.reduce(function(a,m){return a.concat(wd(m));},[]):wds;
+          var allD=vm==="month"?mwk.reduce(function(a,m){return a.concat(wkDates(m));},[]):wds;
           function getAbs(date){
             var s=ld(date);if(ife(date))return[];
             return Object.keys(DR).map(function(doc){
@@ -598,39 +668,45 @@
             </div>
           );
           if(dm==="list"){
-            var rows=allD.filter(function(d){return d.getDay()!==0&&d.getDay()!==6;}).map(function(d){return{date:d,ds:ld(d),abs:getAbs(d)};}).filter(function(r){return r.abs.length>0;});
-            var cards=rows.map(function(r){
+            var rows2=allD.filter(function(d){return d.getDay()!==0&&d.getDay()!==6;}).map(function(d){return{date:d,ds:ld(d),abs:getAbs(d)};}).filter(function(r){return r.abs.length>0;});
+            var cards=rows2.map(function(r){
               var dn=r.date.toLocaleDateString("es-ES",{weekday:"long"});
               var chips=r.abs.map(function(a){
                 var d=DR[a.doc];
                 return (
                   <div key={a.doc} style={{display:"flex",alignItems:"center",gap:8,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 12px"}}>
-                    <span style={{fontWeight:800,fontSize:13,color:d.color,background:d.bg,padding:"2px 8px",borderRadius:8}}>{a.doc}</span><span style={{fontSize:12,color:"#475569"}}>{a.label}</span><span style={{fontSize:10,color:"#94a3b8",background:"#f1f5f9",padding:"1px 6px",borderRadius:6}}>{a.type}</span>
+                    <span style={{fontWeight:800,fontSize:13,color:d.color,background:d.bg,padding:"2px 8px",borderRadius:8}}>{a.doc}</span>
+                    <span style={{fontSize:12,color:"#475569"}}>{a.label}</span>
+                    <span style={{fontSize:10,color:"#94a3b8",background:"#f1f5f9",padding:"1px 6px",borderRadius:6}}>{a.type}</span>
                   </div>
                 );
               });
               return (
                 <div key={r.ds} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden",marginBottom:10}}>
                   <div style={{background:"#0f172a",padding:"8px 16px",display:"flex",alignItems:"center",gap:12}}>
-                    <span style={{color:"#fff",fontWeight:700,fontSize:14}}>{dn.charAt(0).toUpperCase()+dn.slice(1)}</span><span style={{color:"#94a3b8",fontSize:12}}>{r.ds}</span><span style={{background:"#ef4444",color:"#fff",fontSize:11,fontWeight:700,padding:"1px 8px",borderRadius:10,marginLeft:"auto"}}>{r.abs.length} ausente{r.abs.length>1?"s":""}</span>
+                    <span style={{color:"#fff",fontWeight:700,fontSize:14}}>{dn.charAt(0).toUpperCase()+dn.slice(1)}</span>
+                    <span style={{color:"#94a3b8",fontSize:12}}>{r.ds}</span>
+                    <span style={{background:"#ef4444",color:"#fff",fontSize:11,fontWeight:700,padding:"1px 8px",borderRadius:10,marginLeft:"auto"}}>{r.abs.length} ausente{r.abs.length>1?"s":""}</span>
                   </div>
                   <div style={{padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:8}}>{chips}</div>
                 </div>
               );
             });
-            return <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Ausencias</h2>{rows.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div>;
+            return <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Ausencias</h2>{rows2.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div>;
           }
           var weeks=vm==="month"?mwk:[wds[0]];
           var lbls=DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;});
           var wrows=weeks.map(function(m,wi){
-            var wD=vm==="month"?wd(m):wds;
+            var wD=vm==="month"?wkDates(m):wds;
             var dcols=wD.map(function(date,idx){
               var s=ld(date),fesd=ife(date),abs=getAbs(date),isT=ld(new Date())===s,comp=vm==="month";
               var abItems=abs.map(function(a){
                 var d=DR[a.doc];
                 return (
                   <div key={a.doc} style={{display:"flex",alignItems:"center",gap:4,background:d.bg,border:"1px solid "+d.color+"55",borderRadius:6,padding:comp?"2px 5px":"4px 8px"}}>
-                    <span style={{fontWeight:800,fontSize:comp?9:12,color:d.color}}>{a.doc}</span>{!comp&&<span style={{fontSize:11,color:"#475569",flex:1}}>{a.label}</span>}<span style={{fontSize:comp?8:10,color:"#94a3b8",background:"#fff",padding:"0 4px",borderRadius:4}}>{a.type}</span>
+                    <span style={{fontWeight:800,fontSize:comp?9:12,color:d.color}}>{a.doc}</span>
+                    {!comp&&<span style={{fontSize:11,color:"#475569",flex:1}}>{a.label}</span>}
+                    <span style={{fontSize:comp?8:10,color:"#94a3b8",background:"#fff",padding:"0 4px",borderRadius:4}}>{a.type}</span>
                   </div>
                 );
               });
@@ -645,52 +721,119 @@
             });
             return (
               <div key={wi} style={vm==="month"?Object.assign({},S.mWRow,{marginBottom:8}):{display:"grid",gridTemplateColumns:"repeat(5,minmax(170px,1fr))",gap:10,minWidth:860}}>
-                {vm==="month"&&<div style={S.mWLbl}><span style={S.mWN}>S{wi+1}</span></div>}<div style={vm==="month"?S.mWGrid:{display:"contents"}}>{dcols}</div>
-              </div>
-            );
-          });
-          return <div style={{padding:"16px 12px"}}>{modBtns}{vm==="month"&&<div style={S.mDayLbls}>{lbls}</div>}{wrows}</div>;
-        }
-
-        function LView({lvs,setLvs,fes,onAdd,onEdit}){
-          var sum={};
-          Object.keys(DR).forEach(function(doc){sum[doc]={};LT.forEach(function(lt){sum[doc][lt.c]=0;});});
-          lvs.forEach(function(l){
-            var s=new Date(l.startDate+"T12:00:00"),e=new Date(l.endDate+"T12:00:00"),days=0;
-            for(var d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6&&!fes.includes(ld(d)))days++;}
-            if(sum[l.doctor])sum[l.doctor][l.type]=(sum[l.doctor][l.type]||0)+days;
-          });
-          var cards=lvs.map(function(l){
-            var lt=LT.find(function(x){return x.c===l.type;})||{l:l.type};
-            return (
-              <div key={l.id} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
-                <div style={{padding:"4px 12px",borderRadius:20,fontWeight:700,fontSize:13,background:DR[l.doctor]&&DR[l.doctor].bg,color:DR[l.doctor]&&DR[l.doctor].color}}>{l.doctor}</div>
-                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{lt.l}</div><div style={{fontSize:11,color:"#64748b"}}>{l.startDate} - {l.endDate}</div></div>
-                <div style={{display:"flex",gap:6}}>
-                  <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.validated?"#22c55e":"#94a3b8"}}>Validado</span>
-                  <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.informed?"#22c55e":"#94a3b8"}}>Informado</span>
-                </div>
-                <button style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:13}} onClick={function(){onEdit(l);}}>Editar</button>
-              </div>
-            );
-          });
-          var hdr=["Medico"].concat(LT.map(function(x){return x.c;})).map(function(c){return <div key={c} style={{padding:"8px",textAlign:"center"}}>{c}</div>;});
-          var srows=Object.keys(DR).map(function(doc){
-            var cells=LT.map(function(lt){return <div key={lt.c} style={{padding:"8px",textAlign:"center",fontSize:12,color:sum[doc][lt.c]>0?"#ef4444":"#94a3b8"}}>{sum[doc][lt.c]||0}</div>;});
-            return (
-              <div key={doc} style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",borderBottom:"1px solid #f1f5f9"}}>
-                <div style={{padding:"8px",fontWeight:700,color:DR[doc].color,textAlign:"center"}}>{doc}</div>{cells}
+                {vm==="month"&&<div style={S.mWLbl}><span style={S.mWN}>S{wi+1}</span></div>}
+                <div style={vm==="month"?S.mWGrid:{display:"contents"}}>{dcols}</div>
               </div>
             );
           });
           return (
+            <div style={{padding:"16px 12px"}}>
+              {modBtns}
+              {vm==="month"&&<div style={S.mDayLbls}>{lbls}</div>}
+              {wrows}
+            </div>
+          );
+        }
+
+        function LView({lvs,setLvs,fes,onAdd,onEdit}){
+          var [filterCancelled,setFilterCancelled]=useState("all");
+          var [cancelTarget,setCancelTarget]=useState(null);
+          var [cancelReason,setCancelReason]=useState("");
+
+          var sum={};
+          Object.keys(DR).forEach(function(doc){sum[doc]={};LT.forEach(function(lt){sum[doc][lt.c]=0;});});
+          lvs.filter(function(l){return!l.cancelled;}).forEach(function(l){
+            var s=new Date(l.startDate+"T12:00:00"),e=new Date(l.endDate+"T12:00:00"),days=0;
+            for(var d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6&&!fes.includes(ld(d)))days++;}
+            if(sum[l.doctor])sum[l.doctor][l.type]=(sum[l.doctor][l.type]||0)+days;
+          });
+          var filtered=lvs.filter(function(l){
+            if(filterCancelled==="active")return!l.cancelled;
+            if(filterCancelled==="cancelled")return l.cancelled;
+            return true;
+          });
+
+          function doCancel(){
+            setLvs(function(p){return p.map(function(x){return x.id===cancelTarget?Object.assign({},x,{cancelled:true,cancelReason:cancelReason}):x;});});
+            setCancelTarget(null);setCancelReason("");
+          }
+          function doReactivate(id){
+            setLvs(function(p){return p.map(function(x){return x.id===id?Object.assign({},x,{cancelled:false,cancelReason:""}):x;});});
+          }
+
+          var cards=filtered.map(function(l){
+            var lt=LT.find(function(x){return x.c===l.type;})||{l:l.type};
+            return (
+              <div key={l.id} style={{background:l.cancelled?"#fef2f2":"#fff",border:"1px solid "+(l.cancelled?"#fca5a5":"#e2e8f0"),borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:8,opacity:l.cancelled?0.8:1}}>
+                <div style={{padding:"4px 12px",borderRadius:20,fontWeight:700,fontSize:13,background:DR[l.doctor]&&DR[l.doctor].bg,color:DR[l.doctor]&&DR[l.doctor].color}}>{l.doctor}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#1e293b",display:"flex",alignItems:"center",gap:6}}>
+                    {lt.l}
+                    {l.cancelled&&<span style={{fontSize:10,background:"#fef2f2",color:"#991b1b",border:"1px solid #fca5a5",padding:"1px 6px",borderRadius:6,fontWeight:700}}>ANULADA</span>}
+                  </div>
+                  <div style={{fontSize:11,color:"#64748b"}}>{l.startDate} - {l.endDate}</div>
+                  {l.cancelled&&l.cancelReason&&<div style={{fontSize:10,color:"#991b1b",marginTop:2}}>Motivo: {l.cancelReason}</div>}
+                </div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                  <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.validated?"#22c55e":"#94a3b8"}}>Validado</span>
+                  <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.informed?"#22c55e":"#94a3b8"}}>Informado</span>
+                </div>
+                <div style={{display:"flex",gap:4}}>
+                  {!l.cancelled&&<button style={{background:"#fef2f2",color:"#991b1b",border:"1px solid #fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontFamily:"inherit"}} onClick={function(){setCancelTarget(l.id);setCancelReason("");}}>Anular</button>}
+                  {l.cancelled&&<button style={{background:"#f0fdf4",color:"#166534",border:"1px solid #bbf7d0",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontFamily:"inherit"}} onClick={function(){doReactivate(l.id);}}>Reactivar</button>}
+                  <button style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:13}} onClick={function(){onEdit(l);}}>Editar</button>
+                </div>
+              </div>
+            );
+          });
+
+          var hdrCells=["Medico"].concat(LT.map(function(x){return x.c;})).map(function(c){return <div key={c} style={{padding:"8px",textAlign:"center"}}>{c}</div>;});
+          var srows=Object.keys(DR).map(function(doc){
+            var cells=LT.map(function(lt){return <div key={lt.c} style={{padding:"8px",textAlign:"center",fontSize:12,color:sum[doc][lt.c]>0?"#ef4444":"#94a3b8"}}>{sum[doc][lt.c]||0}</div>;});
+            return (
+              <div key={doc} style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",borderBottom:"1px solid #f1f5f9"}}>
+                <div style={{padding:"8px",fontWeight:700,color:DR[doc].color,textAlign:"center"}}>{doc}</div>
+                {cells}
+              </div>
+            );
+          });
+
+          return (
             <div style={{padding:24,maxWidth:900,margin:"0 auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",margin:0}}>Gestion de Ausencias</h2><button style={S.addBtn} onClick={onAdd}>+ Nueva</button>
+                <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",margin:0}}>Gestion de Ausencias</h2>
+                <button style={S.addBtn} onClick={onAdd}>+ Nueva</button>
               </div>
-              {lvs.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24}}>No hay ausencias</div>}{cards}
-              <h3 style={{fontSize:16,fontWeight:700,color:"#0f172a",marginTop:32,marginBottom:12}}>Resumen Anual</h3>
-              <div style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid #e2e8f0"}}><div style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",background:"#0f172a",color:"#94a3b8",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{hdr}</div>{srows}</div>
+              <div style={{display:"flex",gap:6,marginBottom:14}}>
+                {[["all","Todas"],["active","Activas"],["cancelled","Anuladas"]].map(function(x){
+                  return <button key={x[0]} style={Object.assign({},S.fChip,{background:filterCancelled===x[0]?"#0f172a":"#f1f5f9",color:filterCancelled===x[0]?"#fff":"#475569",borderColor:filterCancelled===x[0]?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 12px"})} onClick={function(){setFilterCancelled(x[0]);}}>{x[1]}</button>;
+                })}
+              </div>
+              {filtered.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24}}>No hay ausencias</div>}
+              {cards}
+              <h3 style={{fontSize:16,fontWeight:700,color:"#0f172a",marginTop:32,marginBottom:4}}>Resumen Anual</h3>
+              <p style={{fontSize:11,color:"#64748b",marginBottom:12}}>Solo ausencias activas</p>
+              <div style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid #e2e8f0"}}>
+                <div style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",background:"#0f172a",color:"#94a3b8",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{hdrCells}</div>
+                {srows}
+              </div>
+
+              {cancelTarget&&(
+                <div style={S.overlay}>
+                  <div style={S.modal}>
+                    <h3 style={{fontSize:16,fontWeight:700,margin:"0 0 12px",color:"#991b1b"}}>Anular ausencia</h3>
+                    <p style={{fontSize:13,color:"#475569",marginBottom:16}}>Puedes indicar el motivo de la anulacion (opcional).</p>
+                    <div style={{marginBottom:16}}>
+                      <label style={S.lbl}>Motivo de anulacion</label>
+                      <input type="text" style={S.inp} placeholder="Ej: cambio de planes, error de registro..." value={cancelReason} onChange={function(e){setCancelReason(e.target.value);}}/>
+                    </div>
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                      <button style={S.btnS} onClick={function(){setCancelTarget(null);setCancelReason("");}}>Cancelar</button>
+                      <button style={Object.assign({},S.btnP,{background:"#ef4444"})} onClick={doCancel}>Confirmar anulacion</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         }
@@ -732,7 +875,8 @@
           var prevRows=prev.map(function(x,i){
             return (
               <div key={x.ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:3}}>
-                <span style={{color:"#475569"}}>{i===0?"Esta semana":i===1?"Proxima":"+"+(i)+"s"} ({x.ds})</span><span style={{fontWeight:700,padding:"1px 10px",borderRadius:10,color:"#fff",background:x.wt==="A"?"#3b82f6":"#8b5cf6"}}>Sem. {x.wt}</span>
+                <span style={{color:"#475569"}}>{i===0?"Esta semana":i===1?"Proxima":"+"+(i)+"s"} ({x.ds})</span>
+                <span style={{fontWeight:700,padding:"1px 10px",borderRadius:10,color:"#fff",background:x.wt==="A"?"#3b82f6":"#8b5cf6"}}>Sem. {x.wt}</span>
               </div>
             );
           });
@@ -744,7 +888,8 @@
               <div style={Object.assign({},S.modal,{maxWidth:500})}>
                 <h3 style={{fontSize:17,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Configurar Semana A/B</h3>
                 <p style={{fontSize:12,color:"#64748b",marginBottom:16}}>El nuevo seteo aplica desde el lunes elegido hacia adelante.</p>
-                <div style={{marginBottom:14}}><label style={S.lbl}>Desde el lunes</label><input type="date" style={S.inp} value={d} min={tm} onChange={function(e){var x=new Date(e.target.value+"T12:00:00");setD(ld(mon(x)));}}/></div>
+                <div style={{marginBottom:14}}><label style={S.lbl}>Desde el lunes</label><input type="date" style={S.inp} value={d} min={tm} onChange={function(e){var x=new Date(e.target.value+"T12:00:00");setD(ld(mon(x)));}}/>
+                </div>
                 <div style={{marginBottom:16}}>
                   <label style={S.lbl}>Esa semana sera de tipo</label>
                   <div style={{display:"flex",gap:8}}>
@@ -752,9 +897,20 @@
                     <button style={{flex:1,padding:"8px",borderRadius:8,border:"2px solid",borderColor:t==="B"?"#8b5cf6":"#e2e8f0",background:t==="B"?"#f5f3ff":"#f8fafc",color:t==="B"?"#7c3aed":"#94a3b8",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}} onClick={function(){setT("B");}}>Semana B</button>
                   </div>
                 </div>
-                <div style={{background:"#f8fafc",borderRadius:8,padding:10,marginBottom:14,border:"1px solid #e2e8f0"}}><div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>Vista previa</div>{prevRows}</div>
-                {abr.length>0&&(<div style={{background:"#fffbeb",borderRadius:8,padding:10,marginBottom:14,border:"1px solid #fde68a"}}><div style={{fontSize:11,fontWeight:700,color:"#92400e",textTransform:"uppercase",marginBottom:6}}>Historial</div>{histRows}</div>)}
-                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button style={S.btnS} onClick={onClose}>Cancelar</button><button style={S.btnP} onClick={function(){onSave(d,t);}}>Guardar</button></div>
+                <div style={{background:"#f8fafc",borderRadius:8,padding:10,marginBottom:14,border:"1px solid #e2e8f0"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>Vista previa</div>
+                  {prevRows}
+                </div>
+                {abr.length>0&&(
+                  <div style={{background:"#fffbeb",borderRadius:8,padding:10,marginBottom:14,border:"1px solid #fde68a"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#92400e",textTransform:"uppercase",marginBottom:6}}>Historial</div>
+                    {histRows}
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button style={S.btnS} onClick={onClose}>Cancelar</button>
+                  <button style={S.btnP} onClick={function(){onSave(d,t);}}>Guardar</button>
+                </div>
               </div>
             </div>
           );
@@ -774,16 +930,94 @@
               <div style={S.modal}>
                 <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>Dias Festivos</h3>
                 <div style={{display:"flex",gap:8,marginBottom:12}}>
-                  <input type="date" style={Object.assign({},S.inp,{flex:1})} value={nd} onChange={function(e){setNd(e.target.value);}}/><button style={S.btnP} onClick={function(){if(nd){onAdd(nd);setNd("");}}}>Aniadir</button>
+                  <input type="date" style={Object.assign({},S.inp,{flex:1})} value={nd} onChange={function(e){setNd(e.target.value);}}/>
+                  <button style={S.btnP} onClick={function(){if(nd){onAdd(nd);setNd("");}}}>Aniadir</button>
                 </div>
-                <div style={{maxHeight:200,overflowY:"auto"}}>{items}{fes.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:16}}>Sin festivos</div>}</div>
-                <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button style={S.btnP} onClick={onClose}>Cerrar</button></div>
+                <div style={{maxHeight:200,overflowY:"auto"}}>
+                  {items}
+                  {fes.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:16}}>Sin festivos</div>}
+                </div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
+                  <button style={S.btnP} onClick={onClose}>Cerrar</button>
+                </div>
               </div>
             </div>
           );
         }
 
-        // ── 5. ESTILOS ───────────────────────────────────────────────────────
+        function ImgVisor({url,label,onClose}){
+          var [scale,setScale]=useState(1);
+          var [offset,setOffset]=useState({x:0,y:0});
+          var last=useRef(null);
+          var lastDist=useRef(null);
+          var lastOffset=useRef({x:0,y:0});
+          var lastScale=useRef(1);
+          var imgRef=useRef(null);
+
+          function dist(t){return Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
+          function mid(t){return{x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};}
+
+          function onTouchStart(e){
+            if(e.touches.length===2){
+              lastDist.current=dist(e.touches);
+              lastScale.current=scale;
+              lastOffset.current=offset;
+            } else if(e.touches.length===1){
+              last.current={x:e.touches[0].clientX-offset.x,y:e.touches[0].clientY-offset.y};
+            }
+          }
+          function onTouchMove(e){
+            e.preventDefault();
+            if(e.touches.length===2){
+              var d=dist(e.touches);
+              var ns=Math.min(8,Math.max(0.5,lastScale.current*(d/lastDist.current)));
+              setScale(ns);
+            } else if(e.touches.length===1&&last.current){
+              setOffset({x:e.touches[0].clientX-last.current.x,y:e.touches[0].clientY-last.current.y});
+            }
+          }
+          function onTouchEnd(e){if(e.touches.length<2)lastDist.current=null;}
+
+          function onWheel(e){
+            e.preventDefault();
+            var ns=Math.min(8,Math.max(0.5,scale*(e.deltaY<0?1.12:0.89)));
+            setScale(ns);
+          }
+          function onMouseDown(e){last.current={x:e.clientX-offset.x,y:e.clientY-offset.y};}
+          function onMouseMove(e){if(!last.current||e.buttons!==1)return;setOffset({x:e.clientX-last.current.x,y:e.clientY-last.current.y});}
+          function onMouseUp(){last.current=null;}
+
+          function doDownload(){
+            var a=document.createElement("a");a.href=url;a.download="planificacion-"+label+".png";
+            document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);},200);
+          }
+          function resetView(){setScale(1);setOffset({x:0,y:0});}
+
+          return (
+            <div style={{position:"fixed",inset:0,background:"#000",zIndex:1500,display:"flex",flexDirection:"column",userSelect:"none"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"rgba(0,0,0,0.85)",flexShrink:0,gap:8}}>
+                <span style={{color:"#fff",fontWeight:700,fontSize:14,fontFamily:"Arial,sans-serif"}}>Planificacion {label}</span>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{color:"#94a3b8",fontSize:12,fontFamily:"Arial,sans-serif"}}>{Math.round(scale*100)}%</span>
+                  <button onClick={resetView} style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",padding:"6px 12px",borderRadius:7,cursor:"pointer",fontSize:12,fontFamily:"Arial,sans-serif"}}>1:1</button>
+                  <button onClick={doDownload} style={{background:"#3b82f6",border:"none",color:"#fff",padding:"6px 14px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"Arial,sans-serif"}}>Descargar PNG</button>
+                  <button onClick={onClose} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",padding:"6px 12px",borderRadius:7,cursor:"pointer",fontSize:18,lineHeight:1,fontFamily:"Arial,sans-serif"}}>✕</button>
+                </div>
+              </div>
+              <div style={{flex:1,overflow:"hidden",position:"relative",touchAction:"none"}}
+                onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+                onWheel={onWheel} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
+                <img ref={imgRef} src={url} alt="planificacion"
+                  style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%) translate("+offset.x+"px,"+offset.y+"px) scale("+scale+")",transformOrigin:"center center",maxWidth:"none",cursor:scale>1?"grab":"zoom-in",imageRendering:"crisp-edges"}}
+                  draggable={false}/>
+              </div>
+              <div style={{padding:"8px 16px",background:"rgba(0,0,0,0.7)",textAlign:"center",flexShrink:0}}>
+                <span style={{color:"#64748b",fontSize:11,fontFamily:"Arial,sans-serif"}}>Pellizca para ampliar · Arrastra para mover · Rueda del raton para zoom · Descarga y comparte por WhatsApp</span>
+              </div>
+            </div>
+          );
+        }
+
         const S={
           app:{fontFamily:"Arial,sans-serif",background:"#f0f4f8",minHeight:"100vh",color:"#1e293b"},
           hdr:{background:"#0f172a",color:"#f8fafc",padding:"0 20px",boxShadow:"0 2px 12px rgba(0,0,0,0.3)",position:"sticky",top:0,zIndex:100},
@@ -818,7 +1052,7 @@
           dash:{padding:"16px 12px",overflowX:"auto"},
           dGrid:{display:"grid",gridTemplateColumns:"repeat(5,minmax(185px,1fr))",gap:10,minWidth:940},
           mCont:{padding:"12px 16px",overflowX:"auto"},
-          mDayLbls:{display:"grid",gridTemplateColumns:"48px repeat(5,1fr)",gap:6,marginBottom:4},
+          mDayLbls:{display:"grid",gridTemplateColumns:"42px repeat(5,1fr)",gap:6,marginBottom:4},
           mDL:{textAlign:"center",fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase"},
           mWRow:{display:"flex",gap:6,marginBottom:8,alignItems:"stretch"},
           mWLbl:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:42,gap:4,flexShrink:0},
@@ -839,7 +1073,7 @@
           aCellC:{padding:"4px 5px",borderRadius:5,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
           aName:{fontSize:11,fontWeight:700,color:"#334155"},
           mBadge:{width:6,height:6,borderRadius:"50%",background:"#f97316",display:"inline-block",marginLeft:3},
-          dChipD:{display:"inline-flex",alignItems:"center",padding:"1px 7px",borderRadius:10,border:"1.5px solid",alignSelf:"flex-start",background:"#fff"},
+          dChipD:{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"2px 8px",borderRadius:10,border:"1.5px solid",alignSelf:"flex-start",background:"#fff",minHeight:18,boxSizing:"border-box"},
           lvCh:{background:"#f1f5f9",color:"#94a3b8",fontSize:9,padding:"1px 6px",borderRadius:8,border:"1px dashed #cbd5e1",alignSelf:"flex-start"},
           unCh:{background:"#fffbeb",color:"#92400e",fontSize:9,padding:"1px 6px",borderRadius:8,border:"1px dashed #fcd34d",alignSelf:"flex-start"},
           stCh:{fontSize:9,padding:"2px 7px",borderRadius:8,border:"1px solid",alignSelf:"flex-start",fontWeight:600},
@@ -869,7 +1103,6 @@
           btnD:{background:"#fef2f2",color:"#ef4444",border:"1px solid #fca5a5",padding:"7px 16px",borderRadius:7,cursor:"pointer",fontSize:13,fontFamily:"inherit"},
         };
 
-        // ── 6. RENDERIZADO ───────────────────────────────────────────────────
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>

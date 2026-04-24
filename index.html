@@ -93,7 +93,7 @@
                     headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
                 });
                 const data = await res.json();
-                return data.length > 0 && data[0].valor ? data[0].valor : null;
+                return data.length > 0 && data[data.length - 1].valor ? data[data.length - 1].valor : null;
             } catch(e) { console.error("Error cargando:", e); return null; }
         }
 

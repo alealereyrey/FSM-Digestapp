@@ -136,31 +136,33 @@
           var [incs,setIncs]=useState([]);
           var dashRef=useRef(null);
           var stimer=useRef(null);
-          var ldd=useRef(false);
+          var [isLoaded, setIsLoaded] = useState(false); // ESTADO REAL DE CARGA
 
           function sf2(k,v){setFil(function(p){return Object.assign({},p,{[k]:v});});}
 
+          // Función de CARGA
           useEffect(function(){
-            if(ldd.current)return;ldd.current=true;
             (async function(){
               var a=await sg("d:ab");if(a)setAbr(a);
               var b=await sg("d:ds");if(b)setDs(b);
               var c=await sg("d:lv");if(c)setLvs(c);
               var d=await sg("d:fe");if(d)setFes(d);
               var e=await sg("d:st");if(e)setSts(e);
+              setIsLoaded(true); // <-- BLOQUEA EL GUARDADO HASTA TERMINAR
             })();
           },[]);
 
+          // Función de GUARDADO
           useEffect(function(){
+            if(!isLoaded) return; // Si no ha terminado de descargar, NO guardes
+            
             clearTimeout(stimer.current);
             stimer.current=setTimeout(async function(){
-              if(ldd.current) {
-                await ss("d:ab",abr);await ss("d:ds",ds);await ss("d:lv",lvs);await ss("d:fe",fes);await ss("d:st",sts);
-                setSaveInd(true);setTimeout(function(){setSaveInd(false);},1500);
-              }
+              await ss("d:ab",abr);await ss("d:ds",ds);await ss("d:lv",lvs);await ss("d:fe",fes);await ss("d:st",sts);
+              setSaveInd(true);setTimeout(function(){setSaveInd(false);},1500);
             },1000);
             return function(){clearTimeout(stimer.current);};
-          },[abr,ds,lvs,fes,sts]);
+          },[abr,ds,lvs,fes,sts,isLoaded]);
 
           var gwt=useCallback(function(s){return calcWT(abr,s);},[abr]);
           var wt=useMemo(function(){return gwt(ld(cm));},[cm,gwt]);

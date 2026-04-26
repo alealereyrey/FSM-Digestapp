@@ -83,7 +83,7 @@
           return out;
         }
 
-        // ── 3. CONEXIÓN A SUPABASE (Reemplazando window.storage) ─────────────
+        // ── 3. CONEXIÓN A SUPABASE ─────────────
         const SUPABASE_URL = "https://sgluzymiiejsgfcjzcjy.supabase.co";
         const SUPABASE_KEY = "sb_publishable_nlmxFYNw-uNjN8nazf0UxA_KWSnsM_3";
 
@@ -136,11 +136,10 @@
           var [incs,setIncs]=useState([]);
           var dashRef=useRef(null);
           var stimer=useRef(null);
-          var [isLoaded, setIsLoaded] = useState(false); // ESTADO REAL DE CARGA
+          var [isLoaded, setIsLoaded] = useState(false);
 
           function sf2(k,v){setFil(function(p){return Object.assign({},p,{[k]:v});});}
 
-          // Función de CARGA
           useEffect(function(){
             (async function(){
               var a=await sg("d:ab");if(a)setAbr(a);
@@ -148,14 +147,12 @@
               var c=await sg("d:lv");if(c)setLvs(c);
               var d=await sg("d:fe");if(d)setFes(d);
               var e=await sg("d:st");if(e)setSts(e);
-              setIsLoaded(true); // <-- BLOQUEA EL GUARDADO HASTA TERMINAR
+              setIsLoaded(true);
             })();
           },[]);
 
-          // Función de GUARDADO
           useEffect(function(){
-            if(!isLoaded) return; // Si no ha terminado de descargar, NO guardes
-            
+            if(!isLoaded) return;
             clearTimeout(stimer.current);
             stimer.current=setTimeout(async function(){
               await ss("d:ab",abr);await ss("d:ds",ds);await ss("d:lv",lvs);await ss("d:fe",fes);await ss("d:st",sts);
@@ -274,7 +271,10 @@
               {tab==="dashboard"&&(vm==="week"?<WView wds={wds} wt={wt} {...sh}/>:<MView mwk={mwk} cmo={cmo} {...sh}/>)}
               {tab==="alerts"&&<AView alts={alts}/>}
               {tab==="incidents"&&<IView incs={incs} onExp={expIn}/>}
-              {tab==="absview"&&<AbView wds={wds} lvs={lvs} ife={ife} mwk={mwk} vm={vm}/>}
+              
+              {/* ¡AQUÍ ESTÁ EL ARREGLO! LE PASAMOS dashRef a AbView */}
+              {tab==="absview"&&<AbView wds={wds} lvs={lvs} ife={ife} mwk={mwk} vm={vm} dashRef={dashRef}/>}
+              
               {tab==="leaves"&&<LView lvs={lvs} setLvs={setLvs} fes={fes} onAdd={function(){setEl(null);setSlm(true);}} onEdit={function(l){setEl(l);setSlm(true);}}/>}
               {slm&&<LModal lv={el} onSave={function(l){if(l.id)setLvs(function(p){return p.map(function(x){return x.id===l.id?l:x;});});else setLvs(function(p){return p.concat([Object.assign({},l,{id:""+Date.now()})]);});setSlm(false);}} onDel={function(id){setLvs(function(p){return p.filter(function(x){return x.id!==id;});});setSlm(false);}} onClose={function(){setSlm(false);}}/>}
               {sabm&&<ABModal abr={abr} onSave={function(d,t){var tm=ld(mon(new Date()));var sd=d<tm?tm:d;setAbr(function(p){return p.filter(function(r){return r.date!==sd;}).concat([{date:sd,type:t}]).sort(function(a,b){return a.date.localeCompare(b.date);});});setSabm(false);}} onClose={function(){setSabm(false);}}/>}
@@ -651,7 +651,8 @@
           );
         }
 
-        function AbView({wds,lvs,ife,mwk,vm}){
+        // AQUÍ RECIBIMOS EL dashRef Y SE LO ASIGNAMOS A LOS DIVs
+        function AbView({wds,lvs,ife,mwk,vm,dashRef}){
           var [dm,setDm]=useState("dashboard");
           var allD=vm==="month"?mwk.reduce(function(a,m){return a.concat(wkDates(m));},[]):wds;
           function getAbs(date){
@@ -694,7 +695,8 @@
                 </div>
               );
             });
-            return <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Ausencias</h2>{rows2.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div>;
+            // AÑADIDO ref={dashRef}
+            return <div ref={dashRef} style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Ausencias</h2>{rows2.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div>;
           }
           var weeks=vm==="month"?mwk:[wds[0]];
           var lbls=DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;});
@@ -728,8 +730,9 @@
               </div>
             );
           });
+          // AÑADIDO ref={dashRef}
           return (
-            <div style={{padding:"16px 12px"}}>
+            <div ref={dashRef} style={{padding:"16px 12px"}}>
               {modBtns}
               {vm==="month"&&<div style={S.mDayLbls}>{lbls}</div>}
               {wrows}

@@ -2,7 +2,7 @@ name: Supabase Keep Alive
 
 on:
   schedule:
-    # Se ejecuta todos los lunes y jueves a las 08:00 UTC
+    # Se ejecuta lunes y jueves a las 08:00 UTC
     - cron: '0 8 * * 1,4'
   workflow_dispatch:
 
@@ -12,6 +12,16 @@ jobs:
     steps:
       - name: Ping Supabase Database
         run: |
-          curl -s -f -X GET "https://sgluzymiiejsgfcjzcjy.supabase.co/rest/v1/" \
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "https://sgluzymiiejsgfcjzcjy.supabase.co/rest/v1/?apikey=${{ secrets.SUPABASE_ANON_KEY }}" \
           -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+
+          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          echo "Status Code: $STATUS"
+
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Ping exitoso. La base de datos está activa."
+          else
+            echo "Error al contactar Supabase. Código: $STATUS"
+            exit 1
+          fi

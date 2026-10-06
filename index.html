@@ -16,6 +16,7 @@
     <style>
         body { margin: 0; padding: 0; background: #f0f4f8; }
         * { box-sizing: border-box; }
+        @media (max-width: 700px) { header { position: static !important; } }
     </style>
 </head>
 <body>
@@ -26,11 +27,29 @@
 
         // ── 1. CONSTANTES DE LA APP ──────────────────────────────────────────
         const DR={RGS:{color:"#22c55e",bg:"#dcfce7"},ART:{color:"#06b6d4",bg:"#cffafe"},MSS:{color:"#a855f7",bg:"#f3e8ff"},PPJ:{color:"#eab308",bg:"#fef9c3"}};
+        const DEF_DOCS=Object.keys(DR).map(function(c){return{code:c,name:"",color:DR[c].color,bg:DR[c].bg,on:"",off:""};});
+        const PAL=[{color:"#ef4444",bg:"#fee2e2"},{color:"#3b82f6",bg:"#dbeafe"},{color:"#f97316",bg:"#ffedd5"},{color:"#ec4899",bg:"#fce7f3"},{color:"#14b8a6",bg:"#ccfbf1"},{color:"#84cc16",bg:"#ecfccb"},{color:"#6366f1",bg:"#e0e7ff"},{color:"#78716c",bg:"#f5f5f4"},{color:"#22c55e",bg:"#dcfce7"},{color:"#06b6d4",bg:"#cffafe"},{color:"#a855f7",bg:"#f3e8ff"},{color:"#eab308",bg:"#fef9c3"}];
+        var DOCS=DEF_DOCS;
+        // Médico activo en una fecha: alta (on) <= fecha < baja (off)
+        function docActive(code,s){var d=DOCS.find(function(x){return x.code===code;});if(!d)return false;return(!d.on||s>=d.on)&&(!d.off||s<d.off);}
+        function docsOn(s){return DOCS.filter(function(d){return(!d.on||s>=d.on)&&(!d.off||s<d.off);}).map(function(d){return d.code;});}
+        function docsCurrent(extra){var t=ld(new Date());var l=DOCS.filter(function(d){return!d.off||d.off>t;}).map(function(d){return d.code;});if(extra&&!l.includes(extra))l.push(extra);return l;}
+        // Médicos que se muestran en un día: todos los de la plantilla salvo los ya dados de baja (los aún no incorporados salen deshabilitados)
+        function docsShown(s){return DOCS.filter(function(d){return!d.off||d.off>s;}).map(function(d){return d.code;});}
+        function docOnTxt(code){var d=DOCS.find(function(x){return x.code===code;});return d&&d.on?"Alta el "+fmtS(d.on):"No activo";}
+        function absTxt(ab,code){return ab.k==="free"?"Día libre":ab.k==="off"?docOnTxt(code):"Ausente";}
+        function docsAll(){return DOCS.map(function(d){return d.code;});}
+        function docName(code){var d=DOCS.find(function(x){return x.code===code;});return d&&d.name?d.name:"";}
         const DK=["mon","tue","wed","thu","fri"];
-        const DN=["Lunes","Martes","Miercoles","Jueves","Viernes"];
-        const LT=[{c:"VAC",l:"Vacaciones"},{c:"VAA",l:"Vacaciones anio anterior"},{c:"DLD",l:"Dias libre disposicion"},{c:"CON",l:"Congreso"},{c:"FOR",l:"Formacion"},{c:"ENF",l:"Enfermedad"},{c:"AUS",l:"Otra ausencia"}];
+        const DN=["Lunes","Martes","Miércoles","Jueves","Viernes"];
+        const LT=[{c:"VAC",l:"Vacaciones"},{c:"VAA",l:"Vacaciones año anterior"},{c:"DLD",l:"Días libre disposición"},{c:"CON",l:"Congreso"},{c:"FOR",l:"Formación"},{c:"ENF",l:"Enfermedad"},{c:"PRU",l:"Prueba diagnóstica"},{c:"BAJ",l:"Baja laboral"},{c:"ANJ",l:"Ausencia no justificada"},{c:"AUS",l:"Otra ausencia"}];
+        const SHL={all:"Día completo",am:"Mañana",pm:"Tarde"};
         const MES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-        const AL={E47:"Endoscopia S47",E46:"Endoscopia S46",C42:"Consulta C42",C43:"Consulta C43",CEN:"Capsula Endoscopica",HDD:"Hospital de Dia",VIB:"VIB",C4X:"Consulta Extra C4X"};
+        const AL={E47:"Endoscopia S47",E46:"Endoscopia S46",C42:"Consulta C42",C43:"Consulta C43",CEN:"Cápsula endoscópica",HDD:"Hospital de día",VIB:"VIB",C4X:"Consulta extra C4X"};
+        const BASE_ACTS=["E47","E46","C42","C43","CEN","HDD","VIB"];
+        const CATL={endo:"Endoscopia",con:"Consulta",hdd:"Hospital de día",vib:"VIB",otro:"Otra"};
+        const CATF=[["all","Todas"],["con","Consultas"],["endo","Endoscopias"],["hdd","Hospital de día"],["otras","Otras (VIB)"]];
+        const CORD={endo:0,con:1,hdd:2,vib:3,otro:4};
 
         // ── 2. HELPERS ───────────────────────────────────────────────────────
         function ld(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate());}
@@ -39,6 +58,9 @@
         function mon(d){var x=new Date(d),w=x.getDay();x.setDate(x.getDate()-(w===0?6:w-1));return x;}
         function wkDates(m){return DK.map(function(_,i){var d=new Date(m);d.setDate(d.getDate()+i);return d;});}
         function fmtD(d){return d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit"});}
+        function fmtS(s){return s?s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4):"";}
+        function fmtSS(s){return s?s.slice(8,10)+"/"+s.slice(5,7):"";}
+        function dkOf(date){return DK[(date.getDay()+6)%7];}
         function isFTOM(d){return new Date(d).getDay()===4&&new Date(d).getDate()<=7;}
         function mwks(yr,mo){
           var w=[],m=mon(new Date(yr,mo,1));
@@ -61,6 +83,27 @@
           var dw=Math.round((tm-rm)/(7*24*3600*1000));
           return dw%2===0?ap.type:(ap.type==="A"?"B":"A");
         }
+        function actCat(a){
+          if(a==="E47"||a==="E46"||a==="CEN")return"endo";
+          if(a==="HDD")return"hdd";
+          if(a==="VIB")return"vib";
+          if(a&&a.charAt(0)==="C")return"con";
+          return"otro";
+        }
+        function catMatch(c,f){if(f==="all")return true;if(f==="otras")return c==="vib"||c==="otro";return c===f;}
+        function actName(a){return AL[a]||(a&&a.charAt(0)==="C"?"Consulta "+a:a);}
+        function isPmEndo(act,slot){return slot==="pm"&&(act==="E47"||act==="E46");}
+        // Pueden marcarse como "extra (pagada)": endoscopias de tarde y cualquier consulta
+        function isPayable(act,slot){return isPmEndo(act,slot)||actCat(act)==="con";}
+        // Nombre de consulta: siempre en mayúsculas y comenzando por C
+        function normC(name){
+          var n=(name||"").toUpperCase().replace(/\s+/g,"").replace(/[^A-Z0-9ÁÉÍÓÚÑ\-]/g,"");
+          if(!n)return"";
+          if(n.charAt(0)!=="C")n="C"+n;
+          return n;
+        }
+
+        // Estructura base original (se usa como "semana tipo" inicial)
         function defA(dk,wt){
           var A=wt==="A";
           var b={
@@ -72,16 +115,90 @@
           };
           return b[dk]||{am:{},pm:{}};
         }
-        function getSess(dk,date,dayStates,wt){
-          var ds=ld(date),ov=dayStates[ds]||{},ftom=isFTOM(date),out=[];
-          function mk(id,label,time,type,opt){
-            out.push({id:id,label:label,time:time,type:type,opt:!!opt,active:ov.sessions&&ov.sessions[id]===false?false:true,docs:(ov.sessionDoctors&&ov.sessionDoctors[id])||[]});
+        function lblFor(dk,wt,slot,act){
+          if(dk==="fri"&&slot==="am"){
+            if(act==="C43")return wt==="A"?"C43-HEP":"C43-ARI";
+            if(act==="C42")return wt==="A"?"C42-EII":"C42-HDX";
           }
-          if(dk==="wed"){mk("SSD_w","Sesion Serv. Digestivo","8:00-9:30","session");mk("CMT","Comite Tumores","8:15-9:00","committee");mk("CDF","Comite Farmacia","8:00-9:00","committee",1);mk("CDN","Comite Nutricion","8:15-9:00","committee",1);mk("CDD","Comite Disfagia","Puntual","committee",1);mk("SMI","Sesion Med. Interna","13:30-14:30","session");}
-          if(dk==="thu"){mk("SSD","Sesion Serv. Digestivo","8:00-9:00","session");if(ftom)mk("SCH","Sesion Clinica Hosp.","8:00-9:00","session");}
-          if(dk==="fri"){mk("SSD_f","Sesion Serv. Digestivo","8:00-9:00","session");mk("SEC","Sesion EII Clinic","8:00-9:00","session");}
-          return out;
+          if(dk==="wed"&&slot==="pm"&&act==="C42")return"C42-EII";
+          return act;
         }
+        function buildDefTpl(){
+          var t={};
+          ["A","B"].forEach(function(w){
+            t[w]={};
+            DK.forEach(function(dk){
+              var d=defA(dk,w);t[w][dk]={};
+              ["am","pm"].forEach(function(sl){
+                t[w][dk][sl]=Object.keys(d[sl]).map(function(a){
+                  var it={key:a,act:a,label:lblFor(dk,w,sl,a),doc:d[sl][a]};
+                  if(isPmEndo(a,sl))it.pay="jornada";
+                  return it;
+                });
+              });
+            });
+          });
+          return t;
+        }
+        const DEF_TPL=buildDefTpl();
+        // Devuelve la semana tipo vigente para una fecha (la versión más reciente con "desde" <= fecha)
+        function tplVersion(tps,s){
+          var v=null;
+          (tps||[]).forEach(function(x){if(x.from<=s&&(!v||x.from>=v.from))v=x;});
+          return v;
+        }
+        function tplFor(tps,s){var v=tplVersion(tps,s);return v?v.tpl:DEF_TPL;}
+
+        // Ausencias: las anuladas nunca cuentan. slot: "am" | "pm" | null (cualquier turno)
+        function lvCovers(l,s,slot){
+          if(!l||l.cancelled)return false;
+          if(!l.startDate||!l.endDate)return false;
+          if(!(l.startDate<=s&&l.endDate>=s))return false;
+          var sh=l.shift||"all";
+          return sh==="all"||!slot||sh===slot;
+        }
+        // Días libres fijos (p. ej. todos los lunes)
+        function fdCovers(f,date,slot){
+          if(!f)return false;
+          var s=ld(date);
+          if(f.weekday!==dkOf(date))return false;
+          if(f.from&&s<f.from)return false;
+          if(f.to&&s>f.to)return false;
+          var sh=f.shift||"all";
+          return sh==="all"||!slot||sh===slot;
+        }
+        // Días hábiles de una ausencia: sin fines de semana ni festivos; aunque sea solo mañana o tarde cuenta 1 día
+        function lvDays(l,fes,year){
+          if(!l.startDate||!l.endDate||l.endDate<l.startDate)return 0;
+          var d=pl(l.startDate),e=pl(l.endDate),n=0,f=1;
+          for(;d<=e;d.setDate(d.getDate()+1)){
+            var w=d.getDay();
+            if(w===0||w===6)continue;
+            if(fes.includes(ld(d)))continue;
+            if(year&&d.getFullYear()!==year)continue;
+            n+=f;
+          }
+          return n;
+        }
+        var _askSet=null;
+        function ask(msg,onYes,yesLbl){if(_askSet)_askSet({msg:msg,onYes:onYes,yes:yesLbl||"Sí, continuar"});else if(window.confirm(msg))onYes();}
+        function AskHost(){
+          var [q,setQ]=useState(null);
+          useEffect(function(){_askSet=setQ;return function(){_askSet=null;};},[]);
+          if(!q)return null;
+          return (
+            <div style={Object.assign({},S.overlay,{zIndex:3000})}>
+              <div style={Object.assign({},S.modal,{maxWidth:400})}>
+                <p style={{fontSize:14,color:"#1e293b",margin:"0 0 18px",lineHeight:1.5}}>{q.msg}</p>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button style={S.btnS} onClick={function(){setQ(null);}}>Cancelar</button>
+                  <button style={Object.assign({},S.btnP,{background:"#ef4444"})} onClick={function(){var f=q.onYes;setQ(null);f();}}>{q.yes}</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        function fmtN(n){return String(n).replace(".",",");}
 
         // ── 3. CONEXIÓN A SUPABASE ─────────────
         const SUPABASE_URL = "https://sgluzymiiejsgfcjzcjy.supabase.co";
@@ -124,6 +241,17 @@
           var [lvs,setLvs]=useState([]);
           var [fes,setFes]=useState([]);
           var [sts,setSts]=useState({});
+          var [tps,setTps]=useState([]);   // versiones de la semana tipo
+          var [mvs,setMvs]=useState([]);   // traslados de agendas
+          var [fds,setFds]=useState([]);   // días libres fijos
+          var [docs,setDocs]=useState(DEF_DOCS); // plantilla de médicos
+          var [cfg,setCfg]=useState({abOffFrom:""}); // ajustes generales
+          // Semanas A/B desactivadas a partir de este lunes (vacío = siempre activas). Antes de esa fecha no cambia nada.
+          var abOff=cfg.abOffFrom||(cfg.abOn===false?"2000-01-03":"");
+          var abActive=useCallback(function(s){return!abOff||ld(mon(pl(s)))<abOff;},[abOff]);
+          var [sdm,setSdm]=useState(false);
+          DOCS=docs;
+          docs.forEach(function(d){DR[d.code]={color:d.color,bg:d.bg};});
           var [saveInd,setSaveInd]=useState(false);
           var [fil,setFil]=useState({doc:"all",slot:"all",act:"all",sess:true,com:true});
           var [tab,setTab]=useState("dashboard");
@@ -131,7 +259,10 @@
           var [el,setEl]=useState(null);
           var [sabm,setSabm]=useState(false);
           var [sfm,setSfm]=useState(false);
+          var [sfdm,setSfdm]=useState(false);
           var [sexp,setSexp]=useState(false);
+          var [addCtx,setAddCtx]=useState(null);
+          var [mvCtx,setMvCtx]=useState(null);
           var [alts,setAlts]=useState([]);
           var [incs,setIncs]=useState([]);
           var dashRef=useRef(null);
@@ -147,6 +278,11 @@
               var c=await sg("d:lv");if(c)setLvs(c);
               var d=await sg("d:fe");if(d)setFes(d);
               var e=await sg("d:st");if(e)setSts(e);
+              var f=await sg("d:tp");if(f)setTps(f);
+              var g=await sg("d:mv");if(g)setMvs(g);
+              var h=await sg("d:fd");if(h)setFds(h);
+              var i2=await sg("d:dr");if(i2&&i2.length)setDocs(i2);
+              var j2=await sg("d:cfg");if(j2)setCfg(j2);
               setIsLoaded(true);
             })();
           },[]);
@@ -156,42 +292,74 @@
             clearTimeout(stimer.current);
             stimer.current=setTimeout(async function(){
               await ss("d:ab",abr);await ss("d:ds",ds);await ss("d:lv",lvs);await ss("d:fe",fes);await ss("d:st",sts);
+              await ss("d:tp",tps);await ss("d:mv",mvs);await ss("d:fd",fds);await ss("d:dr",docs);await ss("d:cfg",cfg);
               setSaveInd(true);setTimeout(function(){setSaveInd(false);},1500);
             },1000);
             return function(){clearTimeout(stimer.current);};
-          },[abr,ds,lvs,fes,sts,isLoaded]);
+          },[abr,ds,lvs,fes,sts,tps,mvs,fds,docs,cfg,isLoaded]);
 
-          var gwt=useCallback(function(s){return calcWT(abr,s);},[abr]);
+          var gwt=useCallback(function(s){return abActive(s)?calcWT(abr,s):"A";},[abr,abActive]);
           var wt=useMemo(function(){return gwt(ld(cm));},[cm,gwt]);
           var wds=useMemo(function(){return wkDates(cm);},[cm]);
           var mwk=useMemo(function(){return mwks(cy,cmo);},[cy,cmo]);
 
-          var glv=useCallback(function(doc,date){var s=ld(date);return lvs.find(function(l){return l.doctor===doc&&l.startDate<=s&&l.endDate>=s;});},[lvs]);
+          // ¿El médico no está disponible ese día/turno? -> ausencia activa o día libre
+          var gAbs=useCallback(function(doc,date,slot){
+            var s=ld(date);
+            if(!docActive(doc,s))return{k:"off"};
+            var l=lvs.find(function(x){return x.doctor===doc&&lvCovers(x,s,slot);});
+            if(l)return{k:"leave",lv:l};
+            var f=fds.find(function(x){return x.doctor===doc&&fdCovers(x,date,slot);});
+            if(f)return{k:"free",fd:f};
+            return null;
+          },[lvs,fds,docs]);
           var ife=useCallback(function(date){return fes.includes(ld(date));},[fes]);
+
+          // Agenda de un día = semana tipo vigente + actividades añadidas + traslados + cambios del día
           var ga=useCallback(function(dk,date){
-            var s=ld(date),ov=ds[s]||{},wtype=gwt(s),def=defA(dk,wtype);
-            var am=Object.assign({},def.am,ov.am||{});
-            var pm=Object.assign({},def.pm,ov.pm||{});
-            Object.keys(am).forEach(function(a){if(am[a]&&glv(am[a],date))am[a]="__LEAVE__";});
-            Object.keys(pm).forEach(function(a){if(pm[a]&&glv(pm[a],date))pm[a]="__LEAVE__";});
-            return{am:am,pm:pm};
-          },[ds,gwt,glv]);
+            var s=ld(date),ov=ds[s]||{},w=gwt(s),tpl=tplFor(tps,s);
+            var day=(tpl[w]&&tpl[w][dk])||{am:[],pm:[]};
+            var out={am:[],pm:[]};
+            ["am","pm"].forEach(function(sl){
+              var used={};
+              var o=ov[sl]||{};
+              function push(base){
+                if(!base||!base.key||used[base.key])return;
+                used[base.key]=1;
+                var raw=Object.prototype.hasOwnProperty.call(o,base.key)?o[base.key]:(base.doc===undefined?null:base.doc);
+                var it=Object.assign({},base,{slot:sl,rawDoc:raw,cat:actCat(base.act)});
+                if(isPayable(base.act,sl)){it.payable=true;it.pmEndo=isPmEndo(base.act,sl);it.pay=(ov.pay&&ov.pay[sl+"_"+base.key])||base.pay||"jornada";}
+                var mt=mvs.find(function(m){return m.fromDate===s&&m.fromSlot===sl&&m.key===base.key;});
+                if(mt)it.movedTo=mt;
+                var r=raw;
+                if(raw){var ab=gAbs(raw,date,sl);if(ab)r=ab.k==="leave"?"__LEAVE__":ab.k==="free"?"__FREE__":"__OFF__";}
+                it.doc=r;
+                out[sl].push(it);
+              }
+              (day[sl]||[]).forEach(function(b){push(b);});
+              if(ov.c4x&&sl==="pm")push({key:"C4X",act:"C4X",label:"C4X",doc:null,extra:true});
+              (ov.extra||[]).forEach(function(x){if(x.slot===sl)push({key:x.key,act:x.act,label:x.label||x.key,doc:null,extra:true});});
+              mvs.forEach(function(m){if(m.toDate===s&&m.toSlot===sl)push({key:"MV_"+m.id,act:m.act,label:m.label,doc:m.doctor||null,pay:m.pay,movedFrom:m});});
+            });
+            return out;
+          },[ds,gwt,tps,mvs,gAbs]);
           var gst=useCallback(function(s,slot,act){return sts[s+"_"+slot+"_"+act]||null;},[sts]);
           var sst=useCallback(function(s,slot,act,v){setSts(function(p){var k=s+"_"+slot+"_"+act;return Object.assign({},p,{[k]:p[k]===v?null:v});});},[]);
 
           useEffect(function(){
             var na=[],ni=[];
             var dates=vm==="month"?mwk.reduce(function(a,m){return a.concat(wkDates(m));},[]):wds;
-            dates.forEach(function(date,ai){
-              var di=ai%5;if(ife(date))return;
-              var s=ld(date),dk=DK[di],ag=ga(dk,date);
-              var acts=[];
-              Object.keys(ag.am).forEach(function(k){acts.push({act:k,doc:ag.am[k],slot:"am"});});
-              Object.keys(ag.pm).forEach(function(k){acts.push({act:k,doc:ag.pm[k],slot:"pm"});});
-              acts.forEach(function(it){
-                var st=gst(s,it.slot,it.act);
-                if(st){ni.push({date:s,day:DN[di],slot:it.slot,act:it.act,status:st});return;}
-                if(it.doc==="__LEAVE__"||it.doc===null)na.push({type:"u",day:DN[di],act:it.act,date:s});
+            dates.forEach(function(date){
+              var wd=date.getDay();if(wd===0||wd===6)return;
+              if(ife(date))return;
+              var di=(wd+6)%7,s=ld(date),dk=DK[di],ag=ga(dk,date);
+              ["am","pm"].forEach(function(sl){
+                ag[sl].forEach(function(it){
+                  if(it.movedTo)return;
+                  var st=gst(s,sl,it.key);
+                  if(st){ni.push({date:s,day:DN[di],slot:sl,act:it.act,label:it.label,cat:it.cat,status:st,doc:it.rawDoc,docState:it.doc});return;}
+                  if(it.doc===null||it.doc==="__LEAVE__"||it.doc==="__FREE__"||it.doc==="__OFF__")na.push({date:s,day:DN[di],slot:sl,act:it.act,label:it.label,cat:it.cat,reason:it.doc===null?"Sin designar":it.doc==="__LEAVE__"?"Médico ausente ("+it.rawDoc+")":it.doc==="__OFF__"?it.rawDoc+" ya no está en el servicio":"Día libre de "+it.rawDoc});
+                });
               });
             });
             setAlts(na);setIncs(ni);
@@ -202,10 +370,37 @@
           function tSess(s,id){setDs(function(p){var d=p[s]||{},ss2=Object.assign({},d.sessions||{});ss2[id]=ss2[id]===false?undefined:false;return Object.assign({},p,{[s]:Object.assign({},d,{sessions:ss2})});});}
           function tSDoc(s,id,doc){setDs(function(p){var d=p[s]||{},docs=(d.sessionDoctors&&d.sessionDoctors[id])||[];var nd=docs.includes(doc)?docs.filter(function(x){return x!==doc;}):[].concat(docs,[doc]);var sd=Object.assign({},d.sessionDoctors||{});sd[id]=nd;return Object.assign({},p,{[s]:Object.assign({},d,{sessionDoctors:sd})});});}
           function sDr(s,slot,act,doc){setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{[slot]:Object.assign({},d[slot]||{},{[act]:doc})})});});}
-          function tC4(s){setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{c4x:!d.c4x})});});}
+          function addExtra(s,slot,act,key,doc,pay){
+            setDs(function(p){
+              var d=p[s]||{};
+              var n=Object.assign({},d,{extra:(d.extra||[]).concat([{key:key,act:act,slot:slot,label:key}])});
+              if(doc)n[slot]=Object.assign({},d[slot]||{},{[key]:doc});
+              if(pay)n.pay=Object.assign({},d.pay||{},{[slot+"_"+key]:pay});
+              return Object.assign({},p,{[s]:n});
+            });
+          }
+          function rmExtra(s,slot,key){
+            setDs(function(p){
+              var d=Object.assign({},p[s]||{});
+              if(key==="C4X"&&slot==="pm"&&d.c4x)d.c4x=false;
+              d.extra=(d.extra||[]).filter(function(x){return!(x.key===key&&x.slot===slot);});
+              if(d[slot]){var o=Object.assign({},d[slot]);delete o[key];d[slot]=o;}
+              return Object.assign({},p,{[s]:d});
+            });
+            setSts(function(p){var k=s+"_"+slot+"_"+key;if(!p[k])return p;var n=Object.assign({},p);delete n[k];return n;});
+          }
+          function tPay(s,slot,key,cur){
+            setDs(function(p){var d=p[s]||{};return Object.assign({},p,{[s]:Object.assign({},d,{pay:Object.assign({},d.pay||{},{[slot+"_"+key]:cur==="extra"?"jornada":"extra"})})});});
+          }
+          function editMove(m){setMvCtx({s:m.fromDate,edit:m,it:{key:m.key,act:m.act,label:m.label,cat:m.cat||actCat(m.act),slot:m.fromSlot,rawDoc:m.origDoc,payable:isPayable(m.act,m.fromSlot),pay:m.pay}});}
+          function rmMove(id){
+            ask("¿Deshacer este traslado? La agenda volverá a su fecha original.",function(){
+              setMvs(function(p){return p.filter(function(m){return m.id!==id;});});
+            },"Deshacer traslado");
+          }
 
           function dlCSV(rows,name){
-            var lines=rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(",");}).join("\n");
+            var lines=rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(";");}).join("\n");
             var blob=new Blob(["\uFEFF"+lines],{type:"text/csv;charset=utf-8;"});
             var url=URL.createObjectURL(blob);
             var a=document.createElement("a");a.style.display="none";a.href=url;a.download=name;
@@ -213,23 +408,51 @@
             setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},200);
           }
           function expLv(){
-            var rows=[["Medico","Tipo","Inicio","Fin","Validado","Informado","Anulada","Motivo anulacion"]];
-            lvs.forEach(function(l){rows.push([l.doctor,l.type,l.startDate,l.endDate,l.validated?"Si":"No",l.informed?"Si":"No",l.cancelled?"Si":"No",l.cancelReason||""]);});
+            var rows=[["Médico","Tipo","Turno","Inicio","Fin","Días hábiles","Validado","Informado","Anulada","Fecha anulación","Motivo anulación"]];
+            lvs.slice().sort(function(a,b){return(a.startDate||"").localeCompare(b.startDate||"");}).forEach(function(l){
+              var lt=LT.find(function(x){return x.c===l.type;})||{l:l.type};
+              rows.push([l.doctor,lt.l,SHL[l.shift||"all"],l.startDate,l.endDate,l.cancelled?0:fmtN(lvDays(l,fes)),l.validated?"Sí":"No",l.informed?"Sí":"No",l.cancelled?"Sí":"No",l.cancelledAt||"",l.cancelReason||""]);
+            });
             dlCSV(rows,"ausencias.csv");
           }
-          function expIn(){
-            var rows=[["Fecha","Dia","Turno","Actividad","Medico titular","Estado"]];
-            incs.forEach(function(i){
-              var date=pl(i.date);
-              var ag=ga(DK[DN.indexOf(i.day)],date);
-              var slotObj=i.slot==="am"?ag.am:ag.pm;
-              var doc=slotObj&&slotObj[i.act];
-              var docLabel=(!doc||doc===null)?"Sin designar":doc==="__LEAVE__"?"Ausente":doc;
-              rows.push([i.date,i.day,i.slot==="am"?"Manana":"Tarde",AL[i.act]||i.act,docLabel,i.status==="suspended"?"Suspendida":"Sin cobertura"]);
+          function expIn(list){
+            var src=Array.isArray(list)?list:incs;
+            var rows=[["Fecha","Día","Turno","Tipo actividad","Actividad","Médico titular","Estado"]];
+            src.forEach(function(i){
+              var docLabel=!i.doc?"Sin designar":i.docState==="__LEAVE__"?i.doc+" (ausente)":i.docState==="__FREE__"?i.doc+" (día libre)":i.docState==="__OFF__"?i.doc+" (no activo)":i.doc;
+              rows.push([i.date,i.day,i.slot==="am"?"Mañana":"Tarde",CATL[i.cat]||"",i.label||i.act,docLabel,i.status==="suspended"?"Suspendida":"Sin cobertura"]);
             });
             dlCSV(rows,"incidencias.csv");
           }
-          
+          function expMv(list){
+            var src=Array.isArray(list)?list:mvs;
+            var rows=[["Tipo actividad","Actividad","Fecha inicial","Turno inicial","Fecha final","Turno final","Médico","Médico original","Motivo","Registrado"]];
+            src.slice().sort(function(a,b){return a.fromDate.localeCompare(b.fromDate);}).forEach(function(m){
+              rows.push([CATL[m.cat||actCat(m.act)]||"",m.label||m.act,m.fromDate,SHL[m.fromSlot],m.toDate,SHL[m.toSlot],m.doctor||"Sin designar",m.origDoc||"",m.reason||"",m.created||""]);
+            });
+            dlCSV(rows,"traslados.csv");
+          }
+          function expExt(list,yr){
+            var rows=[["Fecha","Día","Turno","Tipo actividad","Actividad","Médico","Estado","Trasladada"]];
+            list.forEach(function(r){rows.push([r.date,r.day,r.slot==="am"?"Mañana":"Tarde",CATL[r.cat]||"",r.label,r.doc||"Sin designar",r.estado,r.moved?"Sí":"No"]);});
+            dlCSV(rows,"actividad-extra-"+yr+".csv");
+          }
+          function expEndo(){
+            var yr=vm==="month"?cy:cm.getFullYear();
+            var rows=[["Fecha","Día","Turno","Tipo actividad","Actividad","Médico","Modalidad","Estado"]];
+            for(var d=new Date(yr,0,1,12);d.getFullYear()===yr;d.setDate(d.getDate()+1)){
+              var wd=d.getDay();if(wd===0||wd===6||ife(d))continue;
+              var s=ld(d),ag=ga(dkOf(d),new Date(d));
+              ["am","pm"].forEach(function(sl){ag[sl].forEach(function(it){
+                if(!it.payable||!it.rawDoc||it.movedTo)return;
+                if(!it.pmEndo&&it.pay!=="extra")return;
+                var st=gst(s,sl,it.key);
+                rows.push([s,DN[(wd+6)%7],sl==="am"?"Mañana":"Tarde",CATL[it.cat],it.label,it.rawDoc+(it.doc==="__LEAVE__"?" (ausente)":it.doc==="__FREE__"?" (día libre)":it.doc==="__OFF__"?" (no activo)":""),it.pay==="extra"?"Extra (pagada)":"Dentro de jornada",st==="suspended"?"Suspendida":st==="nocoverage"?"Sin cobertura":"Realizada/prevista"]);
+              });});
+            }
+            dlCSV(rows,"tardes-endoscopia-y-extras-"+yr+".csv");
+          }
+
           var [imgVisor,setImgVisor]=useState(null);
           var [imgLoading,setImgLoading]=useState(false);
 
@@ -256,50 +479,93 @@
             loadH2C(function(){runCapture(target,label);});
           }
 
-          var sh={ga:ga,gs:getSess,ds:ds,ife:ife,gst:gst,sst:sst,sDr:sDr,tSess:tSess,tSDoc:tSDoc,tC4:tC4,fil:fil,gwt:gwt,glv:glv,dashRef:dashRef};
+          var sh={abAct:abActive,ga:ga,gs:getSess,ds:ds,ife:ife,gst:gst,sst:sst,sDr:sDr,tSess:tSess,tSDoc:tSDoc,fil:fil,gwt:gwt,gAbs:gAbs,dashRef:dashRef,
+            onAddAct:function(s,slot){setAddCtx({s:s,slot:slot});},
+            onMove:function(it,s){setMvCtx({it:it,s:s});},
+            rmExtra:rmExtra,rmMove:rmMove,editMove:editMove,tPay:tPay};
+
+          var addKeys=null;
+          if(addCtx){var ad=pl(addCtx.s),aag=ga(dkOf(ad),ad);addKeys={am:aag.am.map(function(x){return x.key;}),pm:aag.pm.map(function(x){return x.key;})};}
 
           return (
             <div style={S.app}>
+              <AskHost/>
               <Hdr vm={vm} setVm={setVm} cm={cm} wt={wt} cmo={cmo} cy={cy} wds={wds}
                 onPW={function(){nwk(-1);}} onNW={function(){nwk(1);}} onPM={function(){nmo(-1);}} onNM={function(){nmo(1);}}
                 onT={function(){setCm(mon(now));setCmo(now.getMonth());setCy(now.getFullYear());}}
-                tab={tab} setTab={setTab} ac={alts.length} ic={incs.length}
+                tab={tab} setTab={setTab} ac={alts.length} ic={incs.length} mc={mvs.length}
                 fil={fil} sf2={sf2} sexp={sexp} setSexp={setSexp}
-                expLv={expLv} expIn={expIn} expPDF={expPDF}
-                onAB={function(){setSabm(true);}} onFes={function(){setSfm(true);}} si={saveInd}
+                expLv={expLv} expIn={expIn} expPDF={expPDF} expMv={expMv} expEndo={expEndo}
+                abOn={abActive(ld(cm))} abOff={abOff} onAB={function(){setSabm(true);}} onFes={function(){setSfm(true);}} onFd={function(){setSfdm(true);}} onDocs={function(){setSdm(true);}} si={saveInd}
               />
               {tab==="dashboard"&&(vm==="week"?<WView wds={wds} wt={wt} {...sh}/>:<MView mwk={mwk} cmo={cmo} {...sh}/>)}
               {tab==="alerts"&&<AView alts={alts}/>}
               {tab==="incidents"&&<IView incs={incs} onExp={expIn}/>}
-              
-              {/* ¡AQUÍ ESTÁ EL ARREGLO! LE PASAMOS dashRef a AbView */}
-              {tab==="absview"&&<AbView wds={wds} lvs={lvs} ife={ife} mwk={mwk} vm={vm} dashRef={dashRef}/>}
-              
+              {tab==="absview"&&<AbView wds={wds} lvs={lvs} fds={fds} ife={ife} mwk={mwk} vm={vm} dashRef={dashRef}/>}
               {tab==="leaves"&&<LView lvs={lvs} setLvs={setLvs} fes={fes} onAdd={function(){setEl(null);setSlm(true);}} onEdit={function(l){setEl(l);setSlm(true);}}/>}
-              {slm&&<LModal lv={el} onSave={function(l){if(l.id)setLvs(function(p){return p.map(function(x){return x.id===l.id?l:x;});});else setLvs(function(p){return p.concat([Object.assign({},l,{id:""+Date.now()})]);});setSlm(false);}} onDel={function(id){setLvs(function(p){return p.filter(function(x){return x.id!==id;});});setSlm(false);}} onClose={function(){setSlm(false);}}/>}
-              {sabm&&<ABModal abr={abr} onSave={function(d,t){var tm=ld(mon(new Date()));var sd=d<tm?tm:d;setAbr(function(p){return p.filter(function(r){return r.date!==sd;}).concat([{date:sd,type:t}]).sort(function(a,b){return a.date.localeCompare(b.date);});});setSabm(false);}} onClose={function(){setSabm(false);}}/>}
+              {tab==="extras"&&<ExtView ga={ga} gst={gst} ife={ife} onExp={expExt}/>}
+              {tab==="moves"&&<MvView mvs={mvs} rmMove={rmMove} editMove={editMove} onExp={expMv}/>}
+              {tab==="tpl"&&<TplView tps={tps} setTps={setTps} fds={fds} abActive={abActive} abOff={abOff}/>}
+
+              {slm&&<LModal lv={el} fes={fes} onSave={function(l){if(l.id)setLvs(function(p){return p.map(function(x){return x.id===l.id?l:x;});});else setLvs(function(p){return p.concat([Object.assign({},l,{id:""+Date.now(),createdAt:ld(new Date())})]);});setSlm(false);}} onDel={function(id){ask("¿Eliminar definitivamente esta ausencia? Si solo quieres dejarla sin efecto usa Anular, así queda registrada.",function(){setLvs(function(p){return p.filter(function(x){return x.id!==id;});});setSlm(false);},"Eliminar");}} onClose={function(){setSlm(false);}}/>}
+              {sabm&&<ABModal abr={abr} abOff={abOff} setAbOff={function(v){setCfg(function(p){var n=Object.assign({},p,{abOffFrom:v});delete n.abOn;return n;});}} onSave={function(d,t){var tm=ld(mon(new Date()));var sd=d<tm?tm:d;setAbr(function(p){return p.filter(function(r){return r.date!==sd;}).concat([{date:sd,type:t}]).sort(function(a,b){return a.date.localeCompare(b.date);});});setSabm(false);}} onClose={function(){setSabm(false);}}/>}
               {sfm&&<FModal fes={fes} onAdd={function(d){if(!fes.includes(d))setFes(function(p){return p.concat([d]);});}} onRem={function(d){setFes(function(p){return p.filter(function(x){return x!==d;});});}} onClose={function(){setSfm(false);}}/>}
-              
+              {sdm&&<DocModal docs={docs} setDocs={setDocs} onClose={function(){setSdm(false);}}/>}
+              {sfdm&&<FDModal fds={fds} setFds={setFds} onClose={function(){setSfdm(false);}}/>}
+              {addCtx&&<AddActModal ctx={addCtx} keys={addKeys} gAbs={gAbs}
+                onSave={function(slot,act,key,doc,pay){addExtra(addCtx.s,slot,act,key,doc,pay);setAddCtx(null);}}
+                onClose={function(){setAddCtx(null);}}/>}
+              {mvCtx&&<MoveModal ctx={mvCtx} gAbs={gAbs} ife={ife}
+                onSave={function(rec,isEdit){setMvs(function(p){return isEdit?p.map(function(m){return m.id===rec.id?rec:m;}):p.concat([rec]);});setMvCtx(null);}}
+                onClose={function(){setMvCtx(null);}}/>}
+
               {imgVisor&&<ImgVisor url={imgVisor.url} label={imgVisor.label} onClose={function(){setImgVisor(null);}}/>}
               {imgLoading&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,flexDirection:"column",gap:16}}><div style={{width:48,height:48,border:"4px solid rgba(255,255,255,0.2)",borderTop:"4px solid #fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><span style={{color:"#fff",fontSize:15,fontWeight:600}}>Generando imagen...</span><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>}
             </div>
           );
         }
 
+        function getSess(dk,date,dayStates,wt){
+          var ds=ld(date),ov=dayStates[ds]||{},ftom=isFTOM(date),out=[];
+          function mk(id,label,time,type,opt){
+            out.push({id:id,label:label,time:time,type:type,opt:!!opt,active:ov.sessions&&ov.sessions[id]===false?false:true,docs:(ov.sessionDoctors&&ov.sessionDoctors[id])||[]});
+          }
+          if(dk==="wed"){mk("SSD_w","Sesión Serv. Digestivo","8:00-9:30","session");mk("CMT","Comité Tumores","8:15-9:00","committee");mk("CDF","Comité Farmacia","8:00-9:00","committee",1);mk("CDN","Comité Nutrición","8:15-9:00","committee",1);mk("CDD","Comité Disfagia","Puntual","committee",1);mk("SMI","Sesión Med. Interna","13:30-14:30","session");}
+          if(dk==="thu"){mk("SSD","Sesión Serv. Digestivo","8:00-9:00","session");if(ftom)mk("SCH","Sesión Clínica Hosp.","8:00-9:00","session");}
+          if(dk==="fri"){mk("SSD_f","Sesión Serv. Digestivo","8:00-9:00","session");mk("SEC","Sesión EII Clinic","8:00-9:00","session");}
+          return out;
+        }
+
+        function DChip({on,onClick,color,children}){
+          return <button style={Object.assign({},S.fChip,{background:on?color:"transparent",color:on?"#fff":"#94a3b8",borderColor:on?color:"rgba(255,255,255,0.1)"})} onClick={onClick}>{children}</button>;
+        }
+        function LChip({on,onClick,children}){
+          return <button style={Object.assign({},S.fChip,{background:on?"#0f172a":"#f1f5f9",color:on?"#fff":"#475569",borderColor:on?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 12px"})} onClick={onClick}>{children}</button>;
+        }
+
         function Hdr(p){
           var onPrev=p.vm==="week"?p.onPW:p.onPM, onNext=p.vm==="week"?p.onNW:p.onNM;
           var lbl=p.vm==="week"?fmtD(p.cm)+" - "+fmtD(p.wds[4]):MES[p.cmo]+" "+p.cy;
+          function T(id,txt,badge,bc){
+            return <button key={id} style={Object.assign({},S.tab,p.tab===id?S.tabA:{})} onClick={function(){p.setTab(id);}}>{txt}{badge>0&&<span style={Object.assign({},S.aBadge,bc?{background:bc}:{})}>{badge}</span>}</button>;
+          }
+          var docChips=docsCurrent(p.fil.doc!=="all"?p.fil.doc:null).map(function(d){
+            var on=p.fil.doc===d;
+            return <button key={d} style={Object.assign({},S.fChip,{background:on?DR[d].bg:"transparent",color:on?DR[d].color:"#94a3b8",borderColor:on?DR[d].color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc",d);}}>{d}</button>;
+          });
           return (
             <header style={S.hdr}>
               <div style={S.hTop}>
                 <div style={S.hBrand}>
                   <div style={S.bMark}>D</div>
-                  <div><div style={S.bTitle}>Servicio de Digestivo</div><div style={S.bSub}>Sistema de Organizacion</div></div>
+                  <div><div style={S.bTitle}>Servicio de Digestivo</div><div style={S.bSub}>Sistema de organización</div></div>
                   {p.si&&<span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",padding:"2px 8px",borderRadius:10,marginLeft:8}}>Guardado</span>}
                 </div>
                 <div style={S.hActs}>
-                  <button style={S.aBtn} onClick={p.onFes}>FES</button>
-                  <button style={S.aBtn} onClick={p.onAB}>A/B</button>
+                  <button style={S.aBtn} onClick={p.onFes}>Festivos</button>
+                  <button style={S.aBtn} onClick={p.onDocs}>Médicos</button>
+                  <button style={S.aBtn} onClick={p.onFd}>Días libres</button>
+                  <button style={S.aBtn} onClick={p.onAB}>{!p.abOff?"A/B":p.abOff<="2000-12-31"?"A/B (desactivado)":"A/B (hasta "+fmtSS(p.abOff)+")"}</button>
                   <div style={{position:"relative"}}>
                     <button style={S.aBtn} onClick={function(){p.setSexp(function(v){return !v;});}}>Exportar</button>
                     {p.sexp&&(
@@ -307,6 +573,8 @@
                         <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expPDF();}}>Captura PNG</button>
                         <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expLv();}}>Ausencias CSV</button>
                         <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expIn();}}>Incidencias CSV</button>
+                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expMv();}}>Traslados de agenda CSV</button>
+                        <button style={S.ddItem} onClick={function(){p.setSexp(false);p.expEndo();}}>Tardes de endoscopia y extras CSV (año)</button>
                       </div>
                     )}
                   </div>
@@ -322,15 +590,18 @@
                   <button style={Object.assign({},S.nBtn,{fontSize:12,padding:"4px 10px"})} onClick={p.onT}>Hoy</button>
                   <button style={S.nBtn} onClick={onNext}>&#8250;</button>
                   <span style={S.wLbl}>{lbl}</span>
-                  {p.vm==="week"&&<span style={Object.assign({},S.wBadge,{background:p.wt==="A"?"#3b82f6":"#8b5cf6"})}>Sem.{p.wt}</span>}
+                  {p.vm==="week"&&p.abOn&&<span style={Object.assign({},S.wBadge,{background:p.wt==="A"?"#3b82f6":"#8b5cf6"})}>Sem.{p.wt}</span>}
                 </div>
                 <div style={S.nRight}>
                   <div style={S.tabs}>
-                    <button style={Object.assign({},S.tab,p.tab==="dashboard"?S.tabA:{})} onClick={function(){p.setTab("dashboard");}}>Dashboard</button>
-                    <button style={Object.assign({},S.tab,p.tab==="alerts"?S.tabA:{})} onClick={function(){p.setTab("alerts");}}>Alertas{p.ac>0&&<span style={S.aBadge}>{p.ac}</span>}</button>
-                    <button style={Object.assign({},S.tab,p.tab==="incidents"?S.tabA:{})} onClick={function(){p.setTab("incidents");}}>Incidencias{p.ic>0&&<span style={Object.assign({},S.aBadge,{background:"#f97316"})}>{p.ic}</span>}</button>
-                    <button style={Object.assign({},S.tab,p.tab==="absview"?S.tabA:{})} onClick={function(){p.setTab("absview");}}>Ausencias</button>
-                    <button style={Object.assign({},S.tab,p.tab==="leaves"?S.tabA:{})} onClick={function(){p.setTab("leaves");}}>Gestion</button>
+                    {T("dashboard","Dashboard")}
+                    {T("alerts","Alertas",p.ac)}
+                    {T("incidents","Incidencias",p.ic,"#f97316")}
+                    {T("absview","Ausencias")}
+                    {T("leaves","Gestión")}
+                    {T("moves","Traslados")}
+                    {T("extras","Extras")}
+                    {T("tpl","Semana tipo")}
                   </div>
                 </div>
               </div>
@@ -338,34 +609,29 @@
                 <div style={S.fBar}>
                   <span style={S.fLbl}>Filtros:</span>
                   <div style={S.fGrp}>
-                    <span style={S.fGLbl}>Medico</span>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="all"?"#475569":"transparent",color:p.fil.doc==="all"?"#fff":"#94a3b8",borderColor:p.fil.doc==="all"?"#475569":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","all");}}>Todos</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="RGS"?DR.RGS.bg:"transparent",color:p.fil.doc==="RGS"?DR.RGS.color:"#94a3b8",borderColor:p.fil.doc==="RGS"?DR.RGS.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","RGS");}}>RGS</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="ART"?DR.ART.bg:"transparent",color:p.fil.doc==="ART"?DR.ART.color:"#94a3b8",borderColor:p.fil.doc==="ART"?DR.ART.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","ART");}}>ART</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="MSS"?DR.MSS.bg:"transparent",color:p.fil.doc==="MSS"?DR.MSS.color:"#94a3b8",borderColor:p.fil.doc==="MSS"?DR.MSS.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","MSS");}}>MSS</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.doc==="PPJ"?DR.PPJ.bg:"transparent",color:p.fil.doc==="PPJ"?DR.PPJ.color:"#94a3b8",borderColor:p.fil.doc==="PPJ"?DR.PPJ.color:"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("doc","PPJ");}}>PPJ</button>
+                    <span style={S.fGLbl}>Médico</span>
+                    <DChip on={p.fil.doc==="all"} color="#475569" onClick={function(){p.sf2("doc","all");}}>Todos</DChip>
+                    {docChips}
                   </div>
                   <div style={S.fDiv}/>
                   <div style={S.fGrp}>
                     <span style={S.fGLbl}>Turno</span>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.slot==="all"?"#3b82f6":"transparent",color:p.fil.slot==="all"?"#fff":"#94a3b8",borderColor:p.fil.slot==="all"?"#3b82f6":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("slot","all");}}>Ambos</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.slot==="am"?"#3b82f6":"transparent",color:p.fil.slot==="am"?"#fff":"#94a3b8",borderColor:p.fil.slot==="am"?"#3b82f6":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("slot","am");}}>Manana</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.slot==="pm"?"#3b82f6":"transparent",color:p.fil.slot==="pm"?"#fff":"#94a3b8",borderColor:p.fil.slot==="pm"?"#3b82f6":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("slot","pm");}}>Tarde</button>
+                    <DChip on={p.fil.slot==="all"} color="#3b82f6" onClick={function(){p.sf2("slot","all");}}>Ambos</DChip>
+                    <DChip on={p.fil.slot==="am"} color="#d97706" onClick={function(){p.sf2("slot","am");}}>Mañana</DChip>
+                    <DChip on={p.fil.slot==="pm"} color="#6366f1" onClick={function(){p.sf2("slot","pm");}}>Tarde</DChip>
                   </div>
                   <div style={S.fDiv}/>
                   <div style={S.fGrp}>
                     <span style={S.fGLbl}>Actividad</span>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="all"?"#6366f1":"transparent",color:p.fil.act==="all"?"#fff":"#94a3b8",borderColor:p.fil.act==="all"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","all");}}>Todas</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="endo"?"#6366f1":"transparent",color:p.fil.act==="endo"?"#fff":"#94a3b8",borderColor:p.fil.act==="endo"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","endo");}}>Endos.</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="con"?"#6366f1":"transparent",color:p.fil.act==="con"?"#fff":"#94a3b8",borderColor:p.fil.act==="con"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","con");}}>Consulta</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="hdd"?"#6366f1":"transparent",color:p.fil.act==="hdd"?"#fff":"#94a3b8",borderColor:p.fil.act==="hdd"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","hdd");}}>HDD</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.act==="vib"?"#6366f1":"transparent",color:p.fil.act==="vib"?"#fff":"#94a3b8",borderColor:p.fil.act==="vib"?"#6366f1":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("act","vib");}}>VIB</button>
+                    {[["all","Todas"],["endo","Endos."],["con","Consulta"],["hdd","HDD"],["vib","VIB"]].map(function(x){
+                      return <DChip key={x[0]} on={p.fil.act===x[0]} color="#6366f1" onClick={function(){p.sf2("act",x[0]);}}>{x[1]}</DChip>;
+                    })}
                   </div>
                   <div style={S.fDiv}/>
                   <div style={S.fGrp}>
                     <span style={S.fGLbl}>Mostrar</span>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.sess?"#0891b2":"transparent",color:p.fil.sess?"#fff":"#94a3b8",borderColor:p.fil.sess?"#0891b2":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("sess",!p.fil.sess);}}>Sesiones</button>
-                    <button style={Object.assign({},S.fChip,{background:p.fil.com?"#0891b2":"transparent",color:p.fil.com?"#fff":"#94a3b8",borderColor:p.fil.com?"#0891b2":"rgba(255,255,255,0.1)"})} onClick={function(){p.sf2("com",!p.fil.com);}}>Comites</button>
+                    <DChip on={p.fil.sess} color="#0891b2" onClick={function(){p.sf2("sess",!p.fil.sess);}}>Sesiones</DChip>
+                    <DChip on={p.fil.com} color="#0891b2" onClick={function(){p.sf2("com",!p.fil.com);}}>Comités</DChip>
                   </div>
                 </div>
               )}
@@ -375,7 +641,13 @@
 
         function WView(p){
           var cols=p.wds.map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={p.wt} compact={false} {...p}/>;});
-          return <div ref={p.dashRef} style={S.dash}><div style={S.dGrid}>{cols}</div></div>;
+          return (
+            <div style={S.dash}>
+              <div ref={p.dashRef} style={S.capW}>
+                <div style={S.dGrid}>{cols}</div>
+              </div>
+            </div>
+          );
         }
 
         function MView(p){
@@ -383,41 +655,51 @@
             var wtype=p.gwt(ld(m));
             var cols=wkDates(m).map(function(date,i){return <DCol key={ld(date)} date={date} di={i} wt={wtype} compact={true} dimmed={date.getMonth()!==p.cmo} {...p}/>;});
             return (
-              <div key={ld(m)} style={{display:"grid",gridTemplateColumns:"42px 1fr 1fr 1fr 1fr 1fr",gap:6,marginBottom:6}}>
+              <div key={ld(m)} style={S.mRow}>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
                   <span style={S.mWN}>S{wi+1}</span>
-                  <span style={Object.assign({},S.wBadge,{fontSize:9,padding:"1px 5px",background:wtype==="A"?"#3b82f6":"#8b5cf6"})}>{wtype}</span>
+                  {p.abAct(ld(m))&&<span style={Object.assign({},S.wBadge,{fontSize:10,padding:"1px 6px",background:wtype==="A"?"#3b82f6":"#8b5cf6"})}>{wtype}</span>}
                 </div>
                 {cols}
               </div>
             );
           });
-          var lblRow=(
-            <div style={{display:"grid",gridTemplateColumns:"42px 1fr 1fr 1fr 1fr 1fr",gap:6,marginBottom:4}}>
-              <div/>
-              {DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;})}
-            </div>
-          );
           return (
-            <div ref={p.dashRef} style={S.mCont}>
-              {lblRow}
-              {rows}
+            <div style={S.dash}>
+              <div ref={p.dashRef} style={S.capM}>
+                <div style={Object.assign({},S.mRow,{marginBottom:4})}>
+                  <div/>
+                  {DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;})}
+                </div>
+                {rows}
+                <div style={S.legend}>
+                  <span><span style={Object.assign({},S.legSw,{background:"#f59e0b"})}/>Mañana</span>
+                  <span><span style={Object.assign({},S.legSw,{background:"#6366f1"})}/>Tarde</span>
+                  <span>€ = endoscopia de tarde pagada como extra</span>
+                  <span>← trasladada desde otra fecha · → trasladada a otra fecha</span>
+                </div>
+              </div>
             </div>
           );
+        }
+
+        function sortItems(list){
+          return list.map(function(x,i){return{x:x,i:i};}).sort(function(a,b){
+            var ca=CORD[a.x.cat]||0,cb=CORD[b.x.cat]||0;
+            if(ca!==cb)return ca-cb;
+            return a.i-b.i;
+          }).map(function(o){return o.x;});
         }
 
         function DCol(p){
           var date=p.date,di=p.di,wt=p.wt,compact=p.compact,dimmed=p.dimmed;
           var s=ld(date),dk=DK[di],fesd=p.ife(date);
           var ag=p.ga(dk,date),sess=p.gs(dk,date,p.ds,wt);
-          var c4x=(p.ds[s]||{}).c4x;
           var isT=ld(new Date())===s;
-          var hasPM=dk!=="thu"&&dk!=="fri";
           var showAM=p.fil.slot==="all"||p.fil.slot==="am";
           var showPM=p.fil.slot==="all"||p.fil.slot==="pm";
           var coms=sess.filter(function(x){return x.type==="committee";});
           var clin=sess.filter(function(x){return x.type==="session";});
-          var aP={s:s,gst:p.gst,sst:p.sst,sDr:p.sDr,df:p.fil.doc,compact:compact,date:date,glv:p.glv};
           var colSt=Object.assign({},S.dCol,compact?S.dColC:{},dimmed?{opacity:0.4}:{},isT?{border:"2px solid #3b82f6"}:{});
           if(fesd){
             return (
@@ -427,70 +709,40 @@
               </div>
             );
           }
+          function cells(sl){
+            return sortItems(ag[sl]).filter(function(it){return p.fil.act==="all"||it.cat===p.fil.act;}).map(function(it){
+              return <AC key={it.key} it={it} s={s} slot={sl} date={date} compact={compact} df={p.fil.doc}
+                gst={p.gst} sst={p.sst} sDr={p.sDr} gAbs={p.gAbs} onMove={p.onMove} rmExtra={p.rmExtra} rmMove={p.rmMove} editMove={p.editMove} tPay={p.tPay}/>;
+            });
+          }
+          var amC=cells("am"),pmC=cells("pm");
+          var srP={ds:s,tS:p.tSess,tD:p.tSDoc,compact:compact,date:date,gAbs:p.gAbs};
           return (
             <div style={colSt}>
               <DHdr date={date} dk={dk} compact={compact}/>
               {p.fil.com&&coms.length>0&&(
                 <div style={S.sec}>
-                  {coms.map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;}) }
+                  {coms.map(function(x){return <SR key={x.id} s={x} {...srP}/>;})}
                 </div>
               )}
               {showAM&&(
-                <div>
-                  {!compact&&<div style={S.secLbl}>Manana</div>}
+                <div style={compact?S.amBlkC:S.amBlk}>
+                  {!compact&&<div style={S.amLbl}>Mañana</div>}
                   <div style={S.sec}>
-                    {p.fil.sess&&clin.filter(function(x){return x.time!=="13:30-14:30";}).map(function(x){return <SR key={x.id} s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/>;}) }
-                    {(p.fil.act==="all"||p.fil.act==="endo")&&(
-                      <div style={S.twin}>
-                        {ag.am.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.am.E47} slot="am"/>}
-                        {ag.am.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.am.E46} slot="am"/>}
-                      </div>
-                    )}
-                    {(p.fil.act==="all"||p.fil.act==="con")&&(
-                      <div style={S.twin}>
-                        {ag.am.C43!==undefined&&<AC {...aP} act="C43" lbl={dk==="fri"?(wt==="A"?"C43-HEP":"C43-ARI"):"C43"} doc={ag.am.C43} slot="am"/>}
-                        {ag.am.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="fri"?(wt==="A"?"C42-EII":"C42-HDX"):"C42"} doc={ag.am.C42} slot="am"/>}
-                      </div>
-                    )}
-                    {dk==="fri"&&ag.am.CEN!==undefined&&ag.am.VIB!==undefined&&(p.fil.act==="all"||p.fil.act==="con"||p.fil.act==="vib")&&(
-                      <div style={S.twin}>
-                        {(p.fil.act==="all"||p.fil.act==="con")&&<AC {...aP} act="CEN" lbl="CEN" doc={ag.am.CEN} slot="am"/>}
-                        {(p.fil.act==="all"||p.fil.act==="vib")&&<AC {...aP} act="VIB" lbl="VIB" doc={ag.am.VIB} slot="am"/>}
-                      </div>
-                    )}
-                    {dk!=="fri"&&(p.fil.act==="all"||p.fil.act==="con")&&ag.am.CEN!==undefined&&(
-                      <AC {...aP} act="CEN" lbl="CEN" doc={ag.am.CEN} slot="am" full/>
-                    )}
-                    {(p.fil.act==="all"||p.fil.act==="hdd"||p.fil.act==="vib")&&dk!=="fri"&&(
-                      <div style={S.twin}>
-                        {(p.fil.act==="all"||p.fil.act==="hdd")&&ag.am.HDD!==undefined&&<AC {...aP} act="HDD" lbl="HDD" doc={ag.am.HDD} slot="am"/>}
-                        {(p.fil.act==="all"||p.fil.act==="vib")&&ag.am.VIB!==undefined&&<AC {...aP} act="VIB" lbl="VIB" doc={ag.am.VIB} slot="am"/>}
-                      </div>
-                    )}
+                    {p.fil.sess&&clin.filter(function(x){return x.time!=="13:30-14:30";}).map(function(x){return <SR key={x.id} s={x} {...srP}/>;})}
+                    {amC.length>0&&<div style={S.twin}>{amC}</div>}
+                    {p.fil.sess&&clin.filter(function(x){return x.time==="13:30-14:30";}).map(function(x){return <SR key={x.id} s={x} {...srP}/>;})}
+                    {!compact&&<button style={S.addAct} onClick={function(){p.onAddAct(s,"am");}}>+ Añadir actividad</button>}
                   </div>
                 </div>
               )}
-              {showPM&&p.fil.sess&&clin.filter(function(x){return x.time==="13:30-14:30";}).map(function(x){
-                return <div key={x.id} style={{padding:"0 6px 4px"}}><SR s={x} ds={s} tS={p.tSess} tD={p.tSDoc} compact={compact} date={date} glv={p.glv}/></div>;
-              }) }
-              {showPM&&hasPM&&(
-                <div>
-                  {!compact&&<div style={S.secLbl}>Tarde</div>}
+              {showPM&&(!compact||pmC.length>0)&&(
+                <div style={compact?S.pmBlkC:S.pmBlk}>
+                  {!compact&&<div style={S.pmLbl}>Tarde</div>}
                   <div style={S.sec}>
-                    {(p.fil.act==="all"||p.fil.act==="endo")&&(
-                      <div style={S.twin}>
-                        {ag.pm.E47!==undefined&&<AC {...aP} act="E47" lbl="E47" doc={ag.pm.E47} slot="pm" manual/>}
-                        {ag.pm.E46!==undefined&&<AC {...aP} act="E46" lbl="E46" doc={ag.pm.E46} slot="pm" manual/>}
-                      </div>
-                    )}
-                    {(p.fil.act==="all"||p.fil.act==="con")&&(
-                      <div style={S.twin}>
-                        {ag.pm.C42!==undefined&&<AC {...aP} act="C42" lbl={dk==="wed"?"C42-EII":"C42"} doc={ag.pm.C42} slot="pm"/>}
-                        {ag.pm.C43!==undefined&&<AC {...aP} act="C43" lbl="C43" doc={ag.pm.C43} slot="pm"/>}
-                      </div>
-                    )}
-                    {c4x&&(p.fil.act==="all"||p.fil.act==="con")&&<AC {...aP} act="C4X" lbl="C4X+" doc={ag.pm.C4X||null} slot="pm" full/>}
-                    {!compact&&<button style={S.c4Btn} onClick={function(){p.tC4(s);}}>{c4x?"Quitar C4X":"Aniadir C4X"}</button>}
+                    {pmC.length>0&&<div style={S.twin}>{pmC}</div>}
+                    {!compact&&pmC.length===0&&<div style={{fontSize:11,color:"#94a3b8",textAlign:"center",padding:"2px 0"}}>Sin actividad</div>}
+                    {!compact&&<button style={S.addAct} onClick={function(){p.onAddAct(s,"pm");}}>+ Añadir actividad</button>}
                   </div>
                 </div>
               )}
@@ -502,22 +754,21 @@
           var idx=DK.indexOf(dk);
           return (
             <div style={Object.assign({},S.dHdr,compact?S.dHdrC:{})}>
-              <span style={Object.assign({},S.dName,compact?{fontSize:11}:{})}>{compact?date.toLocaleDateString("es-ES",{weekday:"short"}).replace(".",""):DN[idx]}</span>
-              <span style={Object.assign({},S.dDate,compact?{fontSize:10}:{})}>{compact?date.getDate():fmtD(date)}</span>
+              <span style={Object.assign({},S.dName,compact?{fontSize:12}:{})}>{compact?date.toLocaleDateString("es-ES",{weekday:"short"}).replace(".",""):DN[idx]}</span>
+              <span style={Object.assign({},S.dDate,compact?{fontSize:12}:{})}>{compact?date.getDate():fmtD(date)}</span>
             </div>
           );
         }
 
-        function SR({s,ds,tS,tD,compact,date,glv}){
+        function SR({s,ds,tS,tD,compact,date,gAbs}){
           var isOn=s.active!==false;
-          var absent=new Set(date&&glv?Object.keys(DR).filter(function(d){return glv(d,date);}): []);
-          var chips=Object.keys(DR).map(function(doc){
-            var sel=s.docs&&s.docs.includes(doc),ab=absent.has(doc);
+          var chips=docsShown(ds).map(function(doc){
+            var sel=s.docs&&s.docs.includes(doc),ab=date&&gAbs?gAbs(doc,date,"am"):null;
             return (
-              <button key={doc} disabled={ab}
+              <button key={doc} disabled={!!ab} title={ab?absTxt(ab,doc):""}
                 style={Object.assign({},S.dChip,{background:ab?"#f1f5f9":sel?DR[doc].bg:"#f8fafc",borderColor:ab?"#e2e8f0":sel?DR[doc].color:"#d1d5db",color:ab?"#d1d5db":sel?DR[doc].color:"#6b7280",cursor:ab?"not-allowed":"pointer",textDecoration:ab?"line-through":"none",opacity:ab?0.5:1})}
                 onClick={function(e){e.stopPropagation();if(!ab)tD(ds,s.id,doc);}}>
-                {doc}{ab?" X":""}
+                {doc}
               </button>
             );
           });
@@ -525,7 +776,7 @@
             <div style={Object.assign({},S.sRow,{opacity:isOn?1:0.4})}>
               <div style={S.sHdr}>
                 <span style={S.sIcon}>{s.type==="committee"?"C":"S"}</span>
-                <span style={Object.assign({},S.sLbl,compact?{fontSize:9}:{})}>{compact?s.id:s.label}</span>
+                <span style={Object.assign({},S.sLbl,compact?{fontSize:10}:{})}>{compact?s.id:s.label}</span>
                 {!compact&&<span style={S.sTime}>{s.time}</span>}
                 <button style={Object.assign({},S.togBtn,{background:isOn?"#22c55e":"#94a3b8",marginLeft:"auto"})}
                   onClick={function(e){e.stopPropagation();tS(ds,s.id);}}>
@@ -537,54 +788,76 @@
           );
         }
 
-        function AC({act,lbl,doc,s,slot,gst,sst,sDr,df,compact,full,manual,date,glv}){
+        function AC(p){
+          var it=p.it,s=p.s,slot=p.slot,compact=p.compact;
           var [sm,setSm]=useState(false);
-          var st=gst(s,slot,act);
-          var di=doc&&doc!=="__LEAVE__"?DR[doc]:null;
-          var isF=df!=="all"&&doc!==df&&doc!==null&&doc!=="__LEAVE__";
-          var avail=date&&glv?Object.keys(DR).filter(function(d){return!glv(d,date);}):Object.keys(DR);
+          var st=p.gst(s,slot,it.key);
+          var doc=it.doc;
+          var di=doc&&DR[doc]?DR[doc]:null;
+          var isF=p.df!=="all"&&it.rawDoc!==p.df&&doc!==null;
+          var mvT=it.movedTo,mvF=it.movedFrom;
           var bg="#f8fafc",bc="#e2e8f0";
-          if(st==="suspended"){bg="#fef2f2";bc="#fca5a5";}
+          if(mvT){bg="#f1f5f9";bc="#cbd5e1";}
+          else if(st==="suspended"){bg="#fef2f2";bc="#fca5a5";}
           else if(st==="nocoverage"){bg="#fff7ed";bc="#fdba74";}
-          else if(!doc||doc===null)bg="#fffbeb";
-          else if(doc==="__LEAVE__")bg="#f1f5f9";
-          else if(di){bg=di.bg;bc=di.color+"55";}
-          var menuItems=avail.map(function(d){
-            return <button key={d} style={Object.assign({},S.aMItem,{background:DR[d].bg})} onClick={function(){sDr(s,slot,act,d);setSm(false);}}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span></button>;
+          else if(!doc)bg="#fffbeb";
+          else if(doc==="__LEAVE__"||doc==="__FREE__"||doc==="__OFF__")bg="#f1f5f9";
+          else if(di){bg=di.bg;bc=di.color+"66";}
+          if(mvF&&!st)bc="#0ea5e9";
+          var canMove=(it.cat==="con"||it.cat==="hdd")&&!mvF;
+          var menuItems=docsShown(s).map(function(d){
+            var ab=p.gAbs(d,p.date,slot);
+            if(ab)return <div key={d} style={Object.assign({},S.aMItem,{background:"#f1f5f9",opacity:0.55,display:"flex",alignItems:"center",gap:6,cursor:"not-allowed"})}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span><span style={{fontSize:10,color:"#94a3b8"}}>{absTxt(ab,d)}</span></div>;
+            return <button key={d} style={Object.assign({},S.aMItem,{background:DR[d].bg})} onClick={function(){p.sDr(s,slot,it.key,d);setSm(false);}}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span></button>;
           });
-          var absentItems=Object.keys(DR).filter(function(d){return!avail.includes(d);}).map(function(d){
-            return <div key={d} style={Object.assign({},S.aMItem,{background:"#f1f5f9",opacity:0.5,display:"flex",alignItems:"center",gap:6})}><span style={{color:DR[d].color,fontWeight:700}}>{d}</span><span style={{fontSize:9,color:"#94a3b8"}}>Ausente</span></div>;
-          });
+          var lblTxt=it.label||it.act;
           return (
-            <div style={Object.assign({},S.aCell,full?{gridColumn:"1/-1"}:{},compact?S.aCellC:{},isF?{opacity:0.2}:{},{background:bg,borderColor:bc})}
+            <div style={Object.assign({},S.aCell,compact?S.aCellC:{},isF?{opacity:0.25}:{},{background:bg,borderColor:bc,borderStyle:mvF?"dashed":"solid"})}
               onClick={function(){setSm(function(v){return !v;});}}>
-              <div style={{display:"flex",alignItems:"center",gap:3}}>
-                <span style={Object.assign({},S.aName,compact?{fontSize:9}:{})}>{lbl}</span>
-                {manual&&!compact&&<span style={S.mBadge}>m</span>}
+              <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                <span style={Object.assign({},S.aName,compact?{fontSize:10}:{},mvT?{textDecoration:"line-through",color:"#94a3b8"}:{})}>{lblTxt}</span>
+                {it.payable&&it.pay==="extra"&&<span style={S.payX} title="Pagada como extra">€{compact?"":" Extra"}</span>}
+                {it.pmEndo&&it.pay!=="extra"&&!compact&&<span style={S.payJ} title="Endoscopia de tarde dentro de la jornada">Jornada</span>}
+                {it.extra&&!compact&&<span style={S.addB} title="Actividad añadida solo para este día">+</span>}
               </div>
-              {!compact&&!st&&di&&<div style={Object.assign({},S.dChipD,{borderColor:di.color})}><span style={{color:di.color,fontWeight:700,fontSize:11}}>{doc}</span></div>}
-              {!compact&&!st&&(!doc||doc===null)&&<div style={S.unCh}>Sin designar</div>}
-              {!compact&&!st&&doc==="__LEAVE__"&&<div style={S.lvCh}>Ausente</div>}
-              {!compact&&st==="suspended"&&<div style={Object.assign({},S.stCh,{background:"#fef2f2",color:"#991b1b",borderColor:"#fca5a5"})}>Suspendida</div>}
-              {!compact&&st==="nocoverage"&&<div style={Object.assign({},S.stCh,{background:"#fff7ed",color:"#9a3412",borderColor:"#fdba74"})}>Sin cobertura</div>}
-              {compact&&!st&&di&&<div style={Object.assign({},S.dChipD,{borderColor:di.color,padding:"1px 5px"})}><span style={{color:di.color,fontWeight:700,fontSize:9}}>{doc}</span></div>}
-              {compact&&!st&&(!doc||doc===null)&&<span style={{fontSize:9,color:"#92400e",background:"#fffbeb",padding:"1px 4px",borderRadius:4}}>?</span>}
-              {compact&&!st&&doc==="__LEAVE__"&&<span style={{fontSize:9,color:"#94a3b8"}}>Aus</span>}
-              {compact&&st==="suspended"&&<span style={{fontSize:9,color:"#991b1b"}}>Sus</span>}
-              {compact&&st==="nocoverage"&&<span style={{fontSize:9,color:"#9a3412"}}>NC</span>}
+              {mvF&&<div style={Object.assign({},S.mvF,compact?{fontSize:9}:{})}>{compact?"← "+fmtSS(mvF.fromDate):"← desde "+fmtSS(mvF.fromDate)+" "+(mvF.fromSlot==="am"?"mañana":"tarde")}</div>}
+              {mvT&&<div style={Object.assign({},S.mvT,compact?{fontSize:9}:{})}>{compact?"→ "+fmtSS(mvT.toDate):"Anulada → "+fmtSS(mvT.toDate)+" "+(mvT.toSlot==="am"?"mañana":"tarde")}</div>}
+              {!mvT&&!st&&di&&<div style={Object.assign({},S.dChipD,{borderColor:di.color},compact?{padding:"1px 5px"}:{})}><span style={{color:di.color,fontWeight:700,fontSize:compact?10:13}}>{doc}</span></div>}
+              {!mvT&&!st&&!doc&&<div style={compact?S.unChC:S.unCh}>{compact?"?":"Sin designar"}</div>}
+              {!mvT&&!st&&doc==="__LEAVE__"&&<div style={compact?S.lvChC:S.lvCh}>{compact?"Aus":it.rawDoc+" ausente"}</div>}
+              {!mvT&&!st&&doc==="__FREE__"&&<div style={compact?S.lvChC:S.lvCh}>{compact?"Lib":it.rawDoc+" libre"}</div>}
+              {!mvT&&!st&&doc==="__OFF__"&&<div style={Object.assign({},compact?S.lvChC:S.lvCh,{color:"#991b1b"})}>{compact?"Baja":it.rawDoc+" no activo"}</div>}
+              {!mvT&&st==="suspended"&&<div style={Object.assign({},S.stCh,{background:"#fef2f2",color:"#991b1b",borderColor:"#fca5a5"},compact?{fontSize:9,padding:"0 4px"}:{})}>{compact?"Sus":"Suspendida"}</div>}
+              {!mvT&&st==="nocoverage"&&<div style={Object.assign({},S.stCh,{background:"#fff7ed",color:"#9a3412",borderColor:"#fdba74"},compact?{fontSize:9,padding:"0 4px"}:{})}>{compact?"NC":"Sin cobertura"}</div>}
               {sm&&(
                 <div style={S.aMenu} onClick={function(e){e.stopPropagation();}}>
-                  <div style={S.aMT}>{lbl}</div>
-                  {menuItems}
-                  {absentItems}
-                  <button style={S.aMG} onClick={function(){sDr(s,slot,act,null);setSm(false);}}>Sin designar</button>
-                  <div style={{borderTop:"1px solid #f1f5f9",margin:"5px 0"}}/>
-                  <button style={Object.assign({},S.aMSt,{background:st==="nocoverage"?"#fff7ed":"#f8fafc",borderColor:st==="nocoverage"?"#fdba74":"#e2e8f0",color:st==="nocoverage"?"#9a3412":"#475569"})} onClick={function(){sst(s,slot,act,"nocoverage");setSm(false);}}>
-                    {st==="nocoverage"?"Quitar sin cobertura":"Sin cobertura"}
-                  </button>
-                  <button style={Object.assign({},S.aMSt,{background:st==="suspended"?"#fef2f2":"#f8fafc",borderColor:st==="suspended"?"#fca5a5":"#e2e8f0",color:st==="suspended"?"#991b1b":"#475569"})} onClick={function(){sst(s,slot,act,"suspended");setSm(false);}}>
-                    {st==="suspended"?"Quitar suspension":"Suspender"}
-                  </button>
+                  <div style={S.aMT}>{lblTxt} · {slot==="am"?"Mañana":"Tarde"}</div>
+                  {mvT?(
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <div style={{fontSize:12,color:"#475569",padding:"2px 5px"}}>Trasladada al {fmtS(mvT.toDate)} ({mvT.toSlot==="am"?"mañana":"tarde"}){mvT.doctor?" · "+mvT.doctor:""}</div>
+                      {mvT.reason&&<div style={{fontSize:11,color:"#64748b",padding:"0 5px"}}>Motivo: {mvT.reason}</div>}
+                      <button style={Object.assign({},S.aMSt,{borderColor:"#fca5a5",color:"#991b1b",background:"#fef2f2"})} onClick={function(){p.rmMove(mvT.id);setSm(false);}}>Deshacer traslado</button>
+                      <button style={Object.assign({},S.aMSt,{borderColor:"#7dd3fc",color:"#0369a1",background:"#f0f9ff"})} onClick={function(){setSm(false);p.editMove(mvT);}}>Editar traslado</button>
+                    </div>
+                  ):(
+                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                      {mvF&&<div style={{fontSize:11,color:"#0369a1",padding:"0 5px 4px"}}>Trasladada desde el {fmtS(mvF.fromDate)} ({mvF.fromSlot==="am"?"mañana":"tarde"})</div>}
+                      {menuItems}
+                      <button style={S.aMG} onClick={function(){p.sDr(s,slot,it.key,null);setSm(false);}}>Sin designar</button>
+                      <div style={{borderTop:"1px solid #f1f5f9",margin:"5px 0"}}/>
+                      {it.payable&&<button style={Object.assign({},S.aMSt,{background:it.pay==="extra"?"#ecfdf5":"#fff7ed",borderColor:it.pay==="extra"?"#86efac":"#fdba74",color:it.pay==="extra"?"#166534":"#9a3412"})} onClick={function(){p.tPay(s,slot,it.key,it.pay);setSm(false);}}>{it.pay==="extra"?"Marcar dentro de jornada":"Marcar como extra (pagada)"}</button>}
+                      <button style={Object.assign({},S.aMSt,{background:st==="nocoverage"?"#fff7ed":"#f8fafc",borderColor:st==="nocoverage"?"#fdba74":"#e2e8f0",color:st==="nocoverage"?"#9a3412":"#475569"})} onClick={function(){p.sst(s,slot,it.key,"nocoverage");setSm(false);}}>
+                        {st==="nocoverage"?"Quitar sin cobertura":"Sin cobertura"}
+                      </button>
+                      <button style={Object.assign({},S.aMSt,{background:st==="suspended"?"#fef2f2":"#f8fafc",borderColor:st==="suspended"?"#fca5a5":"#e2e8f0",color:st==="suspended"?"#991b1b":"#475569"})} onClick={function(){p.sst(s,slot,it.key,"suspended");setSm(false);}}>
+                        {st==="suspended"?"Quitar suspensión":"Suspender"}
+                      </button>
+                      {canMove&&<button style={Object.assign({},S.aMSt,{background:"#f0f9ff",borderColor:"#7dd3fc",color:"#0369a1"})} onClick={function(){setSm(false);p.onMove(it,s);}}>Cancelar y trasladar a otra fecha</button>}
+                      {mvF&&<button style={Object.assign({},S.aMSt,{background:"#f0f9ff",borderColor:"#7dd3fc",color:"#0369a1"})} onClick={function(){setSm(false);p.editMove(mvF);}}>Editar traslado</button>}
+                      {mvF&&<button style={Object.assign({},S.aMSt,{background:"#fef2f2",borderColor:"#fca5a5",color:"#991b1b"})} onClick={function(){p.rmMove(mvF.id);setSm(false);}}>Deshacer traslado</button>}
+                      {it.extra&&<button style={Object.assign({},S.aMSt,{background:"#fef2f2",borderColor:"#fca5a5",color:"#991b1b"})} onClick={function(){setSm(false);ask("¿Quitar "+lblTxt+" de este día?",function(){p.rmExtra(s,slot,it.key);},"Quitar");}}>Quitar esta actividad del día</button>}
+                    </div>
+                  )}
                   <button style={S.aMClose} onClick={function(){setSm(false);}}>Cerrar</button>
                 </div>
               )}
@@ -592,58 +865,309 @@
           );
         }
 
+        // Añadir consulta (nombre libre que empieza por C) o tarde/mañana de endoscopia en un día concreto
+        function AddActModal({ctx,keys,gAbs,onSave,onClose}){
+          var date=pl(ctx.s);
+          var [slot,setSlot]=useState(ctx.slot);
+          var [kind,setKind]=useState("con");
+          var [name,setName]=useState("C");
+          var [doc,setDoc]=useState("");
+          var [pay,setPay]=useState("jornada");
+          var [err,setErr]=useState("");
+          var key=kind==="con"?normC(name):kind;
+          var dup=key&&keys&&keys[slot]&&keys[slot].includes(key);
+          var endoPm=kind==="con"||((kind==="E47"||kind==="E46")&&slot==="pm");
+          function save(){
+            if(kind==="con"&&(!key||key==="C")){setErr("Escribe el nombre de la consulta (por ejemplo C44 o C-HEP).");return;}
+            if(dup){setErr(key+" ya existe en el turno de "+(slot==="am"?"mañana":"tarde")+" de este día.");return;}
+            onSave(slot,kind==="con"?key:kind,key,doc||null,endoPm?pay:null);
+          }
+          var docOpts=docsOn(ctx.s).map(function(d){var ab=gAbs(d,date,slot);return <option key={d} value={d} disabled={!!ab}>{d}{ab?(ab.k==="free"?" (día libre)":" (ausente)"):""}</option>;});
+          return (
+            <div style={S.overlay}>
+              <div style={S.modal}>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Añadir actividad</h3>
+                <p style={{fontSize:12,color:"#64748b",margin:"0 0 16px"}}>{DN[(date.getDay()+6)%7]} {fmtS(ctx.s)} · solo para este día. Para que se repita cada semana, añádela en Semana tipo.</p>
+                <div style={{marginBottom:14}}>
+                  <label style={S.lbl}>Turno</label>
+                  <div style={{display:"flex",gap:6}}>
+                    <LChip on={slot==="am"} onClick={function(){setSlot("am");setErr("");}}>Mañana</LChip>
+                    <LChip on={slot==="pm"} onClick={function(){setSlot("pm");setErr("");}}>Tarde</LChip>
+                  </div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={S.lbl}>Tipo</label>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <LChip on={kind==="con"} onClick={function(){setKind("con");setErr("");}}>Consulta</LChip>
+                    <LChip on={kind==="E47"} onClick={function(){setKind("E47");setErr("");}}>Endoscopia E47</LChip>
+                    <LChip on={kind==="E46"} onClick={function(){setKind("E46");setErr("");}}>Endoscopia E46</LChip>
+                    <LChip on={kind==="HDD"} onClick={function(){setKind("HDD");setErr("");}}>Hospital de día</LChip>
+                  </div>
+                </div>
+                {kind==="con"&&(
+                  <div style={{marginBottom:14}}>
+                    <label style={S.lbl}>Nombre de la consulta</label>
+                    <input type="text" style={S.inp} value={name} placeholder="C44" onChange={function(e){setName(normC(e.target.value)||"C");setErr("");}}/>
+                    <div style={{fontSize:11,color:"#64748b",marginTop:4}}>Siempre empieza por C. Se guardará como <b>{key||"C"}</b>.</div>
+                  </div>
+                )}
+                {endoPm&&(
+                  <div style={{marginBottom:14}}>
+                    <label style={S.lbl}>Modalidad</label>
+                    <div style={{display:"flex",gap:6}}>
+                      <LChip on={pay==="jornada"} onClick={function(){setPay("jornada");}}>Dentro de jornada</LChip>
+                      <LChip on={pay==="extra"} onClick={function(){setPay("extra");}}>Extra (pagada)</LChip>
+                    </div>
+                  </div>
+                )}
+                <div style={{marginBottom:16}}>
+                  <label style={S.lbl}>Médico (opcional)</label>
+                  <select style={S.sel} value={doc} onChange={function(e){setDoc(e.target.value);}}><option value="">Sin designar</option>{docOpts}</select>
+                </div>
+                {(err||dup)&&<div style={S.err}>{err||(key+" ya existe en este turno.")}</div>}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button style={S.btnS} onClick={onClose}>Cancelar</button>
+                  <button style={S.btnP} onClick={save}>Añadir</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Cancelar una agenda de consulta u HDD y trasladarla a otra fecha
+        function MoveModal({ctx,gAbs,ife,onSave,onClose}){
+          var it=ctx.it,ed=ctx.edit;
+          var [toDate,setToDate]=useState(ed?ed.toDate:"");
+          var [toSlot,setToSlot]=useState(ed?ed.toSlot:it.slot);
+          var [doc,setDoc]=useState(ed?(ed.doctor||""):(it.rawDoc||""));
+          var [reason,setReason]=useState(ed?(ed.reason||""):"");
+          var [err,setErr]=useState("");
+          var warn="";
+          if(toDate){
+            var td=pl(toDate),wd=td.getDay();
+            if(wd===0||wd===6)warn="Es fin de semana.";
+            else if(ife(td))warn="Es festivo.";
+            else if(doc){var ab=gAbs(doc,td,toSlot);if(ab)warn=doc+(ab.k==="free"?" tiene día libre ese día.":" está ausente ese día.");}
+          }
+          function save(){
+            if(!toDate){setErr("Elige la nueva fecha.");return;}
+            if(toDate===ctx.s&&toSlot===it.slot){setErr("La nueva fecha y turno coinciden con los actuales.");return;}
+            var wd=pl(toDate).getDay();
+            if(wd===0||wd===6){setErr("No se puede trasladar a fin de semana.");return;}
+            if(ed){onSave(Object.assign({},ed,{toDate:toDate,toSlot:toSlot,doctor:doc||null,reason:reason,edited:ld(new Date())}),true);return;}
+            onSave({id:""+Date.now(),key:it.key,act:it.act,label:it.label||it.act,cat:it.cat,pay:it.payable?it.pay:undefined,fromDate:ctx.s,fromSlot:it.slot,toDate:toDate,toSlot:toSlot,doctor:doc||null,origDoc:it.rawDoc||null,reason:reason,created:ld(new Date())});
+          }
+          return (
+            <div style={S.overlay}>
+              <div style={S.modal}>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>{ed?"Editar traslado":"Trasladar agenda"}</h3>
+                <p style={{fontSize:12,color:"#64748b",margin:"0 0 16px"}}>{it.label||it.act} · {CATL[it.cat]} · {fmtS(ctx.s)} {it.slot==="am"?"mañana":"tarde"}. Quedará anulada en esta fecha y aparecerá en la nueva.</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                  <div><label style={S.lbl}>Nueva fecha</label><input type="date" style={S.inp} value={toDate} onChange={function(e){setToDate(e.target.value);setErr("");}}/></div>
+                  <div><label style={S.lbl}>Turno</label><select style={S.sel} value={toSlot} onChange={function(e){setToSlot(e.target.value);}}><option value="am">Mañana</option><option value="pm">Tarde</option></select></div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={S.lbl}>Médico</label>
+                  <select style={S.sel} value={doc} onChange={function(e){setDoc(e.target.value);}}><option value="">Sin designar</option>{docsOn(toDate||ctx.s).map(function(d){return <option key={d} value={d}>{d}</option>;})}</select>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={S.lbl}>Motivo (opcional)</label>
+                  <input type="text" style={S.inp} value={reason} placeholder="Ej: congreso, obras en la sala..." onChange={function(e){setReason(e.target.value);}}/>
+                </div>
+                {warn&&<div style={Object.assign({},S.err,{background:"#fffbeb",color:"#92400e",borderColor:"#fcd34d"})}>Atención: {warn}</div>}
+                {err&&<div style={S.err}>{err}</div>}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button style={S.btnS} onClick={onClose}>Cancelar</button>
+                  <button style={S.btnP} onClick={save}>{ed?"Guardar cambios":"Trasladar"}</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        function CatChips({v,setV}){
+          return <>{CATF.map(function(x){return <LChip key={x[0]} on={v===x[0]} onClick={function(){setV(x[0]);}}>{x[1]}</LChip>;})}</>;
+        }
+        function SlotTagA({sh}){
+          if(!sh||sh==="all")return <span style={{background:"#f1f5f9",color:"#475569",padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600}}>Todo el día</span>;
+          return <SlotTag slot={sh}/>;
+        }
+        function SlotTag({slot}){
+          return <span style={{background:slot==="am"?"#fef3c7":"#e0e7ff",color:slot==="am"?"#92400e":"#3730a3",padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600}}>{slot==="am"?"Mañana":"Tarde"}</span>;
+        }
+
+        // Actividad pagada como extra: listado, resumen por médico y exportación
+        function ExtView({ga,gst,ife,onExp}){
+          var thisY=new Date().getFullYear();
+          var [yr,setYr]=useState(thisY);
+          var [fMo,setFMo]=useState("all");
+          var [fDoc,setFDoc]=useState("all");
+          var [fc,setFc]=useState("all");
+          var [fSt,setFSt]=useState("done");
+          var all=useMemo(function(){
+            var out=[];
+            for(var d=new Date(yr,0,1,12);d.getFullYear()===yr;d.setDate(d.getDate()+1)){
+              var wd=d.getDay();if(wd===0||wd===6||ife(d))continue;
+              var s=ld(d),ag=ga(dkOf(d),new Date(d));
+              ["am","pm"].forEach(function(sl){ag[sl].forEach(function(it){
+                if(!it.payable||it.pay!=="extra"||it.movedTo)return;
+                var st=gst(s,sl,it.key);
+                var docSt=!it.rawDoc?"none":it.doc==="__LEAVE__"?"ausente":it.doc==="__FREE__"?"día libre":it.doc==="__OFF__"?"no activo":"ok";
+                var estado=st==="suspended"?"Suspendida":st==="nocoverage"?"Sin cobertura":docSt==="none"?"Sin designar":docSt!=="ok"?"Médico "+docSt:"Realizada / prevista";
+                out.push({date:s,day:DN[(wd+6)%7],slot:sl,label:it.label||it.act,cat:it.cat,doc:it.rawDoc||"",done:!st&&docSt==="ok",estado:estado,moved:!!it.movedFrom});
+              });});
+            }
+            return out;
+          },[ga,gst,ife,yr]);
+          var fil=all.filter(function(r){
+            if(fMo!=="all"&&r.date.slice(5,7)!==fMo)return false;
+            if(fDoc!=="all"&&r.doc!==fDoc)return false;
+            if(!catMatch(r.cat,fc))return false;
+            if(fSt==="done"&&!r.done)return false;
+            if(fSt==="not"&&r.done)return false;
+            return true;
+          });
+          // Resumen por médico (solo realizadas / previstas, con los filtros de mes y tipo)
+          var base=all.filter(function(r){return r.done&&(fMo==="all"||r.date.slice(5,7)===fMo)&&catMatch(r.cat,fc);});
+          var docsIn=docsAll().filter(function(d){return base.some(function(r){return r.doc===d;});});
+          var sumRows=docsIn.map(function(d){
+            var e=base.filter(function(r){return r.doc===d&&r.cat==="endo";}).length,c=base.filter(function(r){return r.doc===d&&r.cat==="con";}).length;
+            var dc=DR[d]||{color:"#475569",bg:"#f1f5f9"};
+            return (
+              <div key={d} style={{display:"grid",gridTemplateColumns:"90px 1fr 1fr 1fr",borderBottom:"1px solid #f1f5f9",fontSize:13}}>
+                <div style={Object.assign({},S.td,{fontWeight:800,color:dc.color})}>{d}</div>
+                <div style={Object.assign({},S.td,{textAlign:"center"})}>{e}</div>
+                <div style={Object.assign({},S.td,{textAlign:"center"})}>{c}</div>
+                <div style={Object.assign({},S.td,{textAlign:"center",fontWeight:800})}>{e+c}</div>
+              </div>
+            );
+          });
+          var cols="105px 90px 85px 1fr 120px 70px 150px";
+          var rows=fil.map(function(r,i){
+            var dc=DR[r.doc];
+            return (
+              <div key={r.date+r.slot+r.label+i} style={{display:"grid",gridTemplateColumns:cols,borderBottom:"1px solid #f1f5f9",background:i%2===0?"#fff":"#fafafa",fontSize:13,alignItems:"center"}}>
+                <div style={S.td}>{fmtS(r.date)}</div>
+                <div style={S.td}>{r.day}</div>
+                <div style={S.td}><SlotTag slot={r.slot}/></div>
+                <div style={Object.assign({},S.td,{fontWeight:600})}>{r.label}{r.moved&&<span style={{fontSize:10,color:"#0369a1",marginLeft:6}}>(trasladada)</span>}</div>
+                <div style={S.td}>{CATL[r.cat]}</div>
+                <div style={S.td}>{dc?<span style={{fontWeight:700,color:dc.color,background:dc.bg,padding:"1px 8px",borderRadius:8}}>{r.doc}</span>:"—"}</div>
+                <div style={Object.assign({},S.td,{fontSize:12,color:r.done?"#166534":"#9a3412"})}>{r.estado}</div>
+              </div>
+            );
+          });
+          var selSt=Object.assign({},S.sel,{width:"auto",padding:"5px 10px",fontSize:12});
+          var years=[thisY-1,thisY,thisY+1];
+          var tot=base.length;
+          return (
+            <div style={{padding:24,maxWidth:1000,margin:"0 auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:10,flexWrap:"wrap"}}>
+                <h2 style={Object.assign({},S.h2,{margin:0})}>Actividad pagada como extra</h2>
+                <button style={S.addBtn} onClick={function(){onExp(fil,yr);}}>Exportar CSV</button>
+              </div>
+              <p style={{fontSize:12,color:"#64748b",margin:"0 0 14px"}}>Incluye las endoscopias de tarde y las consultas marcadas como "Extra (pagada)", ya sea en la Semana tipo o en un día concreto. Las suspendidas, sin cobertura o sin médico disponible se pueden ver, pero no suman en el resumen.</p>
+              <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:12,marginBottom:14,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <select style={selSt} value={yr} onChange={function(e){setYr(+e.target.value);}}>{years.map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
+                <select style={selSt} value={fMo} onChange={function(e){setFMo(e.target.value);}}><option value="all">Todo el año</option>{MES.map(function(m,i){return <option key={m} value={p2(i+1)}>{m}</option>;})}</select>
+                <select style={selSt} value={fDoc} onChange={function(e){setFDoc(e.target.value);}}><option value="all">Todos los médicos</option>{docsAll().map(function(d){return <option key={d} value={d}>{d}</option>;})}</select>
+                <select style={selSt} value={fc} onChange={function(e){setFc(e.target.value);}}><option value="all">Endoscopias y consultas</option><option value="endo">Solo endoscopias</option><option value="con">Solo consultas</option></select>
+                <select style={selSt} value={fSt} onChange={function(e){setFSt(e.target.value);}}><option value="done">Realizadas / previstas</option><option value="not">No realizadas</option><option value="all">Todas</option></select>
+                <span style={{fontSize:12,color:"#64748b",marginLeft:"auto"}}>{fil.length} {fil.length===1?"actividad":"actividades"}</span>
+              </div>
+              <h3 style={{fontSize:15,fontWeight:700,margin:"0 0 8px"}}>Resumen por médico · {fMo==="all"?"año "+yr:MES[+fMo-1]+" "+yr} <span style={{fontWeight:400,color:"#64748b",fontSize:13}}>({tot} en total)</span></h3>
+              {sumRows.length===0?<div style={{fontSize:13,color:"#94a3b8",marginBottom:18}}>No hay actividad extra en este periodo.</div>:(
+                <div style={Object.assign({},S.tbl,{marginBottom:20,maxWidth:560})}>
+                  <div style={Object.assign({},S.th,{gridTemplateColumns:"90px 1fr 1fr 1fr"})}><div style={S.thc}>Médico</div><div style={Object.assign({},S.thc,{textAlign:"center"})}>Endoscopias</div><div style={Object.assign({},S.thc,{textAlign:"center"})}>Consultas</div><div style={Object.assign({},S.thc,{textAlign:"center"})}>Total</div></div>
+                  {sumRows}
+                </div>
+              )}
+              <h3 style={{fontSize:15,fontWeight:700,margin:"0 0 8px"}}>Detalle</h3>
+              {fil.length===0?<div style={{textAlign:"center",padding:32,color:"#94a3b8"}}>Sin actividad extra con estos filtros</div>:(
+                <div style={Object.assign({},S.tbl,{overflowX:"auto"})}>
+                  <div style={{minWidth:760}}>
+                    <div style={Object.assign({},S.th,{gridTemplateColumns:cols})}><div style={S.thc}>Fecha</div><div style={S.thc}>Día</div><div style={S.thc}>Turno</div><div style={S.thc}>Actividad</div><div style={S.thc}>Tipo</div><div style={S.thc}>Médico</div><div style={S.thc}>Estado</div></div>
+                    {rows}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
         function AView({alts}){
-          var items=alts.filter(function(a){return a.type==="u";}).map(function(a,i){
-            return <div key={i} style={{fontSize:13,color:"#475569",padding:"3px 0"}}>- {a.day} ({a.date}): {a.act}</div>;
+          var [fc,setFc]=useState("all");
+          var fil=alts.filter(function(a){return catMatch(a.cat,fc);});
+          var cols="110px 95px 85px 1fr 120px 1fr";
+          var rows=fil.map(function(a,i){
+            return (
+              <div key={i} style={{display:"grid",gridTemplateColumns:cols,borderBottom:"1px solid #f1f5f9",background:i%2===0?"#fff":"#fafafa",fontSize:13}}>
+                <div style={S.td}>{fmtS(a.date)}</div>
+                <div style={S.td}>{a.day}</div>
+                <div style={S.td}><SlotTag slot={a.slot}/></div>
+                <div style={Object.assign({},S.td,{fontWeight:600})}>{a.label||a.act}</div>
+                <div style={S.td}>{CATL[a.cat]}</div>
+                <div style={Object.assign({},S.td,{color:"#92400e"})}>{a.reason}</div>
+              </div>
+            );
           });
           return (
-            <div style={{padding:24,maxWidth:900,margin:"0 auto"}}>
-              <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Alertas</h2>
-              {alts.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin alertas</div>}
-              {items.length>0&&<div style={{background:"#fff",borderRadius:10,padding:16,borderLeft:"4px solid #eab308"}}><div style={{fontWeight:700,fontSize:14,color:"#eab308",marginBottom:10}}>Sin Designar</div>{items}</div>}
+            <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>
+              <h2 style={S.h2}>Alertas</h2>
+              <p style={{fontSize:12,color:"#64748b",margin:"-8px 0 14px"}}>Actividades sin médico del periodo visible (semana o mes).</p>
+              <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><CatChips v={fc} setV={setFc}/></div>
+              {fil.length===0?<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin alertas</div>:(
+                <div style={S.tbl}>
+                  <div style={Object.assign({},S.th,{gridTemplateColumns:cols})}><div style={S.thc}>Fecha</div><div style={S.thc}>Día</div><div style={S.thc}>Turno</div><div style={S.thc}>Actividad</div><div style={S.thc}>Tipo</div><div style={S.thc}>Motivo</div></div>
+                  {rows}
+                </div>
+              )}
             </div>
           );
         }
 
         function IView({incs,onExp}){
-          var [fSt,setFSt]=useState("all"),[fMo,setFMo]=useState("all");
+          var [fSt,setFSt]=useState("all"),[fMo,setFMo]=useState("all"),[fc,setFc]=useState("all");
           var months=[...new Set(incs.map(function(i){return i.date.slice(0,7);}))].sort();
-          var fil=incs.filter(function(i){return(fSt==="all"||i.status===fSt)&&(fMo==="all"||i.date.startsWith(fMo));});
+          var fil=incs.filter(function(i){return(fSt==="all"||i.status===fSt)&&(fMo==="all"||i.date.startsWith(fMo))&&catMatch(i.cat,fc);});
+          var cols="110px 95px 85px 1fr 120px 70px 130px";
           var rows=fil.map(function(i,idx){
-            var slbg=i.slot==="am"?"#fef9c3":"#dbeafe",slco=i.slot==="am"?"#854d0e":"#1e40af";
             var stbg=i.status==="suspended"?"#fef2f2":"#fff7ed",stco=i.status==="suspended"?"#991b1b":"#9a3412",stbc=i.status==="suspended"?"#fca5a5":"#fdba74";
             return (
-              <div key={idx} style={{display:"grid",gridTemplateColumns:"120px 100px 90px 1fr 150px",borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#fff":"#fafafa"}}>
-                <div style={{padding:"9px 14px",fontSize:12,color:"#475569"}}>{i.date}</div>
-                <div style={{padding:"9px 14px",fontSize:12,fontWeight:500}}>{i.day}</div>
-                <div style={{padding:"9px 14px"}}><span style={{background:slbg,color:slco,padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600}}>{i.slot==="am"?"Manana":"Tarde"}</span></div>
-                <div style={{padding:"9px 14px",fontSize:12}}>{AL[i.act]||i.act}</div>
-                <div style={{padding:"9px 14px"}}><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:stbg,color:stco,border:"1px solid "+stbc}}>{i.status==="suspended"?"Suspendida":"Sin cobertura"}</span></div>
+              <div key={idx} style={{display:"grid",gridTemplateColumns:cols,borderBottom:"1px solid #f1f5f9",background:idx%2===0?"#fff":"#fafafa",fontSize:13}}>
+                <div style={S.td}>{fmtS(i.date)}</div>
+                <div style={S.td}>{i.day}</div>
+                <div style={S.td}><SlotTag slot={i.slot}/></div>
+                <div style={Object.assign({},S.td,{fontWeight:600})}>{i.label||i.act}</div>
+                <div style={S.td}>{CATL[i.cat]}</div>
+                <div style={S.td}>{i.doc||"—"}</div>
+                <div style={S.td}><span style={{display:"inline-block",padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:stbg,color:stco,border:"1px solid "+stbc}}>{i.status==="suspended"?"Suspendida":"Sin cobertura"}</span></div>
               </div>
             );
           });
           var moOpts=months.map(function(m){return <option key={m} value={m}>{MES[parseInt(m.slice(5,7))-1]} {m.slice(0,4)}</option>;});
           return (
-            <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>
+            <div style={{padding:24,maxWidth:1000,margin:"0 auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",margin:0}}>Incidencias de Cobertura</h2>
-                <button style={S.addBtn} onClick={onExp}>Exportar CSV</button>
+                <h2 style={Object.assign({},S.h2,{margin:0})}>Incidencias de cobertura</h2>
+                <button style={S.addBtn} onClick={function(){onExp(fil);}}>Exportar CSV</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
                 <div style={{background:"#eef2ff",borderRadius:10,padding:"14px 18px"}}><div style={{fontSize:22,fontWeight:800,color:"#6366f1"}}>{fil.length}</div><div style={{fontSize:12,color:"#64748b"}}>Total</div></div>
                 <div style={{background:"#fef2f2",borderRadius:10,padding:"14px 18px"}}><div style={{fontSize:22,fontWeight:800,color:"#991b1b"}}>{fil.filter(function(i){return i.status==="suspended";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Suspendidas</div></div>
                 <div style={{background:"#fff7ed",borderRadius:10,padding:"14px 18px"}}><div style={{fontSize:22,fontWeight:800,color:"#9a3412"}}>{fil.filter(function(i){return i.status==="nocoverage";}).length}</div><div style={{fontSize:12,color:"#64748b"}}>Sin cobertura</div></div>
               </div>
-              <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                <button style={Object.assign({},S.fChip,{background:fSt==="all"?"#6366f1":"#f1f5f9",color:fSt==="all"?"#fff":"#475569",borderColor:fSt==="all"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("all");}}>Todas</button>
-                <button style={Object.assign({},S.fChip,{background:fSt==="suspended"?"#6366f1":"#f1f5f9",color:fSt==="suspended"?"#fff":"#475569",borderColor:fSt==="suspended"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("suspended");}}>Suspendidas</button>
-                <button style={Object.assign({},S.fChip,{background:fSt==="nocoverage"?"#6366f1":"#f1f5f9",color:fSt==="nocoverage"?"#fff":"#475569",borderColor:fSt==="nocoverage"?"#6366f1":"#e2e8f0"})} onClick={function(){setFSt("nocoverage");}}>Sin cobertura</button>
+              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+                <LChip on={fSt==="all"} onClick={function(){setFSt("all");}}>Todas</LChip>
+                <LChip on={fSt==="suspended"} onClick={function(){setFSt("suspended");}}>Suspendidas</LChip>
+                <LChip on={fSt==="nocoverage"} onClick={function(){setFSt("nocoverage");}}>Sin cobertura</LChip>
                 {months.length>0&&<select value={fMo} onChange={function(e){setFMo(e.target.value);}} style={Object.assign({},S.sel,{width:"auto",padding:"4px 10px",fontSize:12})}><option value="all">Todos los meses</option>{moOpts}</select>}
               </div>
+              <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><CatChips v={fc} setV={setFc}/></div>
               {fil.length===0?<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin incidencias</div>
-               :<div style={{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",overflow:"hidden"}}>
-                  <div style={{display:"grid",gridTemplateColumns:"120px 100px 90px 1fr 150px",background:"#0f172a",color:"#94a3b8",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>
-                    <div style={{padding:"10px 14px"}}>Fecha</div><div style={{padding:"10px 14px"}}>Dia</div><div style={{padding:"10px 14px"}}>Turno</div><div style={{padding:"10px 14px"}}>Actividad</div><div style={{padding:"10px 14px"}}>Estado</div>
+               :<div style={S.tbl}>
+                  <div style={Object.assign({},S.th,{gridTemplateColumns:cols})}>
+                    <div style={S.thc}>Fecha</div><div style={S.thc}>Día</div><div style={S.thc}>Turno</div><div style={S.thc}>Actividad</div><div style={S.thc}>Tipo</div><div style={S.thc}>Médico</div><div style={S.thc}>Estado</div>
                   </div>
                   {rows}
                 </div>}
@@ -651,36 +1175,90 @@
           );
         }
 
-        // AQUÍ RECIBIMOS EL dashRef Y SE LO ASIGNAMOS A LOS DIVs
-        function AbView({wds,lvs,ife,mwk,vm,dashRef}){
+        // Registro de traslados de agenda
+        function MvView({mvs,rmMove,editMove,onExp}){
+          var [fDoc,setFDoc]=useState("all"),[fMo,setFMo]=useState("all"),[fc,setFc]=useState("all");
+          var months=[...new Set(mvs.reduce(function(a,m){return a.concat([m.fromDate.slice(0,7),m.toDate.slice(0,7)]);},[]))].sort();
+          var fil=mvs.filter(function(m){
+            if(fDoc!=="all"&&m.doctor!==fDoc&&m.origDoc!==fDoc)return false;
+            if(fMo!=="all"&&!m.fromDate.startsWith(fMo)&&!m.toDate.startsWith(fMo))return false;
+            return catMatch(m.cat||actCat(m.act),fc);
+          }).sort(function(a,b){return a.fromDate.localeCompare(b.fromDate);});
+          var cols="1fr 120px 150px 150px 90px 1fr 140px";
+          var rows=fil.map(function(m,i){
+            var d=m.doctor&&DR[m.doctor];
+            return (
+              <div key={m.id} style={{display:"grid",gridTemplateColumns:cols,borderBottom:"1px solid #f1f5f9",background:i%2===0?"#fff":"#fafafa",fontSize:13,alignItems:"center"}}>
+                <div style={Object.assign({},S.td,{fontWeight:600})}>{m.label||m.act}</div>
+                <div style={S.td}>{CATL[m.cat||actCat(m.act)]}</div>
+                <div style={S.td}><span style={{textDecoration:"line-through",color:"#94a3b8"}}>{fmtS(m.fromDate)}</span> <SlotTag slot={m.fromSlot}/></div>
+                <div style={S.td}><b>{fmtS(m.toDate)}</b> <SlotTag slot={m.toSlot}/></div>
+                <div style={S.td}>{d?<span style={{fontWeight:700,color:d.color,background:d.bg,padding:"1px 8px",borderRadius:8}}>{m.doctor}</span>:"—"}{m.origDoc&&m.origDoc!==m.doctor?<div style={{fontSize:10,color:"#94a3b8"}}>antes {m.origDoc}</div>:null}</div>
+                <div style={Object.assign({},S.td,{color:"#64748b",fontSize:12})}>{m.reason||""}</div>
+                <div style={Object.assign({},S.td,{display:"flex",gap:4})}><button style={Object.assign({},S.btnS,{padding:"3px 8px",fontSize:11})} onClick={function(){editMove(m);}}>Editar</button><button style={Object.assign({},S.btnD,{padding:"3px 8px",fontSize:11})} onClick={function(){rmMove(m.id);}}>Deshacer</button></div>
+              </div>
+            );
+          });
+          return (
+            <div style={{padding:24,maxWidth:1060,margin:"0 auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <h2 style={Object.assign({},S.h2,{margin:0})}>Traslados de agenda</h2>
+                <button style={S.addBtn} onClick={function(){onExp(fil);}}>Exportar CSV</button>
+              </div>
+              <p style={{fontSize:12,color:"#64748b",margin:"0 0 14px"}}>Para trasladar una agenda de consulta u HDD, haz clic sobre ella en el dashboard y elige "Cancelar y trasladar a otra fecha". Con "Editar" puedes cambiar la nueva fecha, el turno, el médico o el motivo.</p>
+              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+                <LChip on={fDoc==="all"} onClick={function(){setFDoc("all");}}>Todos</LChip>
+                {docsAll().map(function(d){return <LChip key={d} on={fDoc===d} onClick={function(){setFDoc(d);}}>{d}</LChip>;})}
+                <select value={fMo} onChange={function(e){setFMo(e.target.value);}} style={Object.assign({},S.sel,{width:"auto",padding:"4px 10px",fontSize:12})}><option value="all">Todos los meses</option>{months.map(function(m){return <option key={m} value={m}>{MES[parseInt(m.slice(5,7))-1]} {m.slice(0,4)}</option>;})}</select>
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><CatChips v={fc} setV={setFc}/></div>
+              {fil.length===0?<div style={{textAlign:"center",padding:48,color:"#94a3b8",fontSize:15}}>No hay traslados registrados</div>:(
+                <div style={Object.assign({},S.tbl,{overflowX:"auto"})}>
+                  <div style={{minWidth:860}}>
+                    <div style={Object.assign({},S.th,{gridTemplateColumns:cols})}><div style={S.thc}>Actividad</div><div style={S.thc}>Tipo</div><div style={S.thc}>Fecha inicial</div><div style={S.thc}>Fecha final</div><div style={S.thc}>Médico</div><div style={S.thc}>Motivo</div><div style={S.thc}></div></div>
+                    {rows}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        function AbView({wds,lvs,fds,ife,mwk,vm,dashRef}){
           var [dm,setDm]=useState("dashboard");
           var allD=vm==="month"?mwk.reduce(function(a,m){return a.concat(wkDates(m));},[]):wds;
           function getAbs(date){
             var s=ld(date);if(ife(date))return[];
-            return Object.keys(DR).map(function(doc){
-              var lv=lvs.find(function(l){return l.doctor===doc&&l.startDate<=s&&l.endDate>=s;});
-              if(!lv)return null;
-              var lt=LT.find(function(x){return x.c===lv.type;})||{l:lv.type};
-              return{doc:doc,type:lv.type,label:lt.l};
-            }).filter(Boolean);
+            var out=[];
+            docsOn(s).forEach(function(doc){
+              lvs.filter(function(l){return l.doctor===doc&&lvCovers(l,s,null);}).forEach(function(lv){
+                var lt=LT.find(function(x){return x.c===lv.type;})||{l:lv.type};
+                out.push({doc:doc,type:lv.type,label:lt.l,shift:lv.shift||"all",k:"leave",id:lv.id});
+              });
+              fds.filter(function(f){return f.doctor===doc&&fdCovers(f,date,null);}).forEach(function(f){
+                out.push({doc:doc,type:"LIB",label:"Día libre",shift:f.shift||"all",k:"free",id:f.id});
+              });
+            });
+            return out;
           }
+          function shTag(sh,comp){return sh==="all"?null:<span style={{fontSize:comp?9:10,fontWeight:700,color:sh==="am"?"#92400e":"#3730a3"}}>{sh==="am"?"M":"T"}</span>;}
           var modBtns=(
             <div style={{display:"flex",gap:8,marginBottom:16}}>
-              <button style={Object.assign({},S.fChip,{background:dm==="dashboard"?"#0f172a":"transparent",color:dm==="dashboard"?"#fff":"#94a3b8",borderColor:dm==="dashboard"?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 14px"})} onClick={function(){setDm("dashboard");}}>Dashboard</button>
-              <button style={Object.assign({},S.fChip,{background:dm==="list"?"#0f172a":"transparent",color:dm==="list"?"#fff":"#94a3b8",borderColor:dm==="list"?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 14px"})} onClick={function(){setDm("list");}}>Listado</button>
+              <LChip on={dm==="dashboard"} onClick={function(){setDm("dashboard");}}>Dashboard</LChip>
+              <LChip on={dm==="list"} onClick={function(){setDm("list");}}>Listado</LChip>
             </div>
           );
           if(dm==="list"){
-            var rows2=allD.filter(function(d){return d.getDay()!==0&&d.getDay()!==6;}).map(function(d){return{date:d,ds:ld(d),abs:getAbs(d)};}).filter(function(r){return r.abs.length>0;});
+            var rows2=allD.map(function(d){return{date:d,ds:ld(d),abs:getAbs(d)};}).filter(function(r){return r.abs.length>0;});
             var cards=rows2.map(function(r){
               var dn=r.date.toLocaleDateString("es-ES",{weekday:"long"});
               var chips=r.abs.map(function(a){
                 var d=DR[a.doc];
                 return (
-                  <div key={a.doc} style={{display:"flex",alignItems:"center",gap:8,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"6px 12px"}}>
+                  <div key={a.doc+a.id} style={{display:"flex",alignItems:"center",gap:8,background:a.k==="free"?"#f8fafc":"#fff",border:"1px "+(a.k==="free"?"dashed":"solid")+" #e2e8f0",borderRadius:8,padding:"6px 12px"}}>
                     <span style={{fontWeight:800,fontSize:13,color:d.color,background:d.bg,padding:"2px 8px",borderRadius:8}}>{a.doc}</span>
-                    <span style={{fontSize:12,color:"#475569"}}>{a.label}</span>
-                    <span style={{fontSize:10,color:"#94a3b8",background:"#f1f5f9",padding:"1px 6px",borderRadius:6}}>{a.type}</span>
+                    <span style={{fontSize:13,color:"#475569"}}>{a.label}</span>
+                    {a.shift!=="all"&&<span style={{fontSize:11,color:"#475569"}}>({SHL[a.shift]})</span>}
                   </div>
                 );
               });
@@ -688,29 +1266,29 @@
                 <div key={r.ds} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden",marginBottom:10}}>
                   <div style={{background:"#0f172a",padding:"8px 16px",display:"flex",alignItems:"center",gap:12}}>
                     <span style={{color:"#fff",fontWeight:700,fontSize:14}}>{dn.charAt(0).toUpperCase()+dn.slice(1)}</span>
-                    <span style={{color:"#94a3b8",fontSize:12}}>{r.ds}</span>
-                    <span style={{background:"#ef4444",color:"#fff",fontSize:11,fontWeight:700,padding:"1px 8px",borderRadius:10,marginLeft:"auto"}}>{r.abs.length} ausente{r.abs.length>1?"s":""}</span>
+                    <span style={{color:"#94a3b8",fontSize:12}}>{fmtS(r.ds)}</span>
+                    <span style={{background:"#ef4444",color:"#fff",fontSize:11,fontWeight:700,padding:"1px 8px",borderRadius:10,marginLeft:"auto"}}>{r.abs.length} {r.abs.length>1?"registros":"registro"}</span>
                   </div>
                   <div style={{padding:"8px 12px",display:"flex",flexWrap:"wrap",gap:8}}>{chips}</div>
                 </div>
               );
             });
-            // AÑADIDO ref={dashRef}
-            return <div ref={dashRef} style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16}}>Ausencias</h2>{rows2.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div>;
+            return <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>{modBtns}<div ref={dashRef} style={{background:"#f0f4f8",padding:4}}><h2 style={S.h2}>Ausencias</h2>{rows2.length===0&&<div style={{textAlign:"center",padding:48,color:"#22c55e",fontSize:16}}>Sin ausencias</div>}{cards}</div></div>;
           }
           var weeks=vm==="month"?mwk:[wds[0]];
-          var lbls=DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;});
           var wrows=weeks.map(function(m,wi){
             var wD=vm==="month"?wkDates(m):wds;
+            var comp=vm==="month";
             var dcols=wD.map(function(date,idx){
-              var s=ld(date),fesd=ife(date),abs=getAbs(date),isT=ld(new Date())===s,comp=vm==="month";
+              var s=ld(date),fesd=ife(date),abs=getAbs(date),isT=ld(new Date())===s;
               var abItems=abs.map(function(a){
                 var d=DR[a.doc];
                 return (
-                  <div key={a.doc} style={{display:"flex",alignItems:"center",gap:4,background:d.bg,border:"1px solid "+d.color+"55",borderRadius:6,padding:comp?"2px 5px":"4px 8px"}}>
-                    <span style={{fontWeight:800,fontSize:comp?9:12,color:d.color}}>{a.doc}</span>
-                    {!comp&&<span style={{fontSize:11,color:"#475569",flex:1}}>{a.label}</span>}
-                    <span style={{fontSize:comp?8:10,color:"#94a3b8",background:"#fff",padding:"0 4px",borderRadius:4}}>{a.type}</span>
+                  <div key={a.doc+a.id} style={{display:"flex",alignItems:"center",gap:4,background:a.k==="free"?"#fff":d.bg,border:"1px "+(a.k==="free"?"dashed ":"solid ")+d.color+"88",borderRadius:6,padding:comp?"2px 5px":"4px 8px"}}>
+                    <span style={{fontWeight:800,fontSize:comp?11:13,color:d.color}}>{a.doc}</span>
+                    {!comp&&<span style={{fontSize:12,color:"#475569",flex:1}}>{a.label}</span>}
+                    {shTag(a.shift,comp)}
+                    <span style={{fontSize:comp?9:10,color:"#94a3b8",background:"#fff",padding:"0 4px",borderRadius:4,marginLeft:comp?"auto":0}}>{a.type}</span>
                   </div>
                 );
               });
@@ -718,66 +1296,89 @@
                 <div key={s} style={Object.assign({},S.dCol,comp?S.dColC:{},isT?{border:"2px solid #3b82f6"}:{},{minHeight:comp?60:120})}>
                   <DHdr date={date} dk={DK[idx]} compact={comp}/>
                   {fesd&&<div style={S.fesB}><span style={S.fesL}>{comp?"FES":"FESTIVO"}</span></div>}
-                  {!fesd&&abs.length===0&&<div style={{padding:comp?"4px 6px":"8px 10px",color:"#94a3b8",fontSize:comp?9:11,textAlign:"center"}}>{comp?"OK":"Sin ausencias"}</div>}
+                  {!fesd&&abs.length===0&&<div style={{padding:comp?"4px 6px":"8px 10px",color:"#94a3b8",fontSize:comp?10:12,textAlign:"center"}}>{comp?"OK":"Sin ausencias"}</div>}
                   {!fesd&&abs.length>0&&<div style={{padding:comp?"3px 4px":"6px 8px",display:"flex",flexDirection:"column",gap:comp?2:4}}>{abItems}</div>}
                 </div>
               );
             });
             return (
-              <div key={wi} style={vm==="month"?Object.assign({},S.mWRow,{marginBottom:8}):{display:"grid",gridTemplateColumns:"repeat(5,minmax(170px,1fr))",gap:10,minWidth:860}}>
-                {vm==="month"&&<div style={S.mWLbl}><span style={S.mWN}>S{wi+1}</span></div>}
-                <div style={vm==="month"?S.mWGrid:{display:"contents"}}>{dcols}</div>
+              <div key={wi} style={comp?S.mRow:Object.assign({},S.dGrid,{marginBottom:8})}>
+                {comp&&<div style={{display:"flex",alignItems:"center",justifyContent:"center"}}><span style={S.mWN}>S{wi+1}</span></div>}
+                {dcols}
               </div>
             );
           });
-          // AÑADIDO ref={dashRef}
           return (
-            <div ref={dashRef} style={{padding:"16px 12px"}}>
-              {modBtns}
-              {vm==="month"&&<div style={S.mDayLbls}>{lbls}</div>}
-              {wrows}
+            <div style={S.dash}>
+              <div style={{maxWidth:1000,margin:"0 auto"}}>{modBtns}</div>
+              <div ref={dashRef} style={S.capW}>
+                {vm==="month"&&<div style={Object.assign({},S.mRow,{marginBottom:4})}><div/>{DN.map(function(d){return <div key={d} style={S.mDL}>{d}</div>;})}</div>}
+                {wrows}
+              </div>
             </div>
           );
         }
 
         function LView({lvs,setLvs,fes,onAdd,onEdit}){
-          var [filterCancelled,setFilterCancelled]=useState("all");
+          var today=ld(new Date()),thisY=new Date().getFullYear();
+          var [fSt,setFSt]=useState("all");
+          var [fDoc,setFDoc]=useState("all");
+          var [fType,setFType]=useState("all");
+          var [fYear,setFYear]=useState("all");
+          var [fMon,setFMon]=useState("all");
+          var [rest,setRest]=useState(false);
+          var [sumY,setSumY]=useState(thisY);
           var [cancelTarget,setCancelTarget]=useState(null);
           var [cancelReason,setCancelReason]=useState("");
 
+          var years=[...new Set(lvs.reduce(function(a,l){if(l.startDate)a.push(+l.startDate.slice(0,4));if(l.endDate)a.push(+l.endDate.slice(0,4));return a;},[thisY]))].sort();
+
+          // Resumen anual: solo ausencias NO anuladas, solo días hábiles (sin festivos ni fines de semana) del año elegido
           var sum={};
-          Object.keys(DR).forEach(function(doc){sum[doc]={};LT.forEach(function(lt){sum[doc][lt.c]=0;});});
+          docsAll().forEach(function(doc){sum[doc]={};LT.forEach(function(lt){sum[doc][lt.c]=0;});});
           lvs.filter(function(l){return!l.cancelled;}).forEach(function(l){
-            var s=new Date(l.startDate+"T12:00:00"),e=new Date(l.endDate+"T12:00:00"),days=0;
-            for(var d=new Date(s);d<=e;d.setDate(d.getDate()+1)){if(d.getDay()!==0&&d.getDay()!==6&&!fes.includes(ld(d)))days++;}
-            if(sum[l.doctor])sum[l.doctor][l.type]=(sum[l.doctor][l.type]||0)+days;
-          });
-          var filtered=lvs.filter(function(l){
-            if(filterCancelled==="active")return!l.cancelled;
-            if(filterCancelled==="cancelled")return l.cancelled;
-            return true;
+            if(sum[l.doctor])sum[l.doctor][l.type]=(sum[l.doctor][l.type]||0)+lvDays(l,fes,sumY);
           });
 
+          function overlaps(l,a,b){return l.startDate<=b&&l.endDate>=a;}
+          var filtered=lvs.filter(function(l){
+            if(fSt==="active"&&l.cancelled)return false;
+            if(fSt==="cancelled"&&!l.cancelled)return false;
+            if(fDoc!=="all"&&l.doctor!==fDoc)return false;
+            if(fType!=="all"&&l.type!==fType)return false;
+            if(rest){if(!overlaps(l,today,thisY+"-12-31"))return false;}
+            else{
+              if(fYear!=="all"&&fMon!=="all"){var a=fYear+"-"+fMon,last=new Date(+fYear,+fMon,0).getDate();if(!overlaps(l,a+"-01",a+"-"+p2(last)))return false;}
+              else if(fYear!=="all"){if(!overlaps(l,fYear+"-01-01",fYear+"-12-31"))return false;}
+              else if(fMon!=="all"){if(!(l.startDate.slice(5,7)===fMon||l.endDate.slice(5,7)===fMon))return false;}
+            }
+            return true;
+          }).sort(function(a,b){return(a.startDate||"").localeCompare(b.startDate||"")||(a.endDate||"").localeCompare(b.endDate||"");});
+
           function doCancel(){
-            setLvs(function(p){return p.map(function(x){return x.id===cancelTarget?Object.assign({},x,{cancelled:true,cancelReason:cancelReason}):x;});});
+            setLvs(function(p){return p.map(function(x){return x.id===cancelTarget?Object.assign({},x,{cancelled:true,cancelReason:cancelReason,cancelledAt:today}):x;});});
             setCancelTarget(null);setCancelReason("");
           }
           function doReactivate(id){
-            setLvs(function(p){return p.map(function(x){return x.id===id?Object.assign({},x,{cancelled:false,cancelReason:""}):x;});});
+            setLvs(function(p){return p.map(function(x){return x.id===id?Object.assign({},x,{cancelled:false,cancelReason:"",cancelledAt:"",reactivatedAt:today}):x;});});
           }
 
           var cards=filtered.map(function(l){
             var lt=LT.find(function(x){return x.c===l.type;})||{l:l.type};
+            var nd=lvDays(l,fes);
             return (
-              <div key={l.id} style={{background:l.cancelled?"#fef2f2":"#fff",border:"1px solid "+(l.cancelled?"#fca5a5":"#e2e8f0"),borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:8,opacity:l.cancelled?0.8:1}}>
+              <div key={l.id} style={{background:l.cancelled?"#fef2f2":"#fff",border:"1px solid "+(l.cancelled?"#fca5a5":"#e2e8f0"),borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:8,flexWrap:"wrap"}}>
                 <div style={{padding:"4px 12px",borderRadius:20,fontWeight:700,fontSize:13,background:DR[l.doctor]&&DR[l.doctor].bg,color:DR[l.doctor]&&DR[l.doctor].color}}>{l.doctor}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#1e293b",display:"flex",alignItems:"center",gap:6}}>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontSize:14,fontWeight:600,color:l.cancelled?"#991b1b":"#1e293b",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",textDecoration:l.cancelled?"line-through":"none"}}>
                     {lt.l}
-                    {l.cancelled&&<span style={{fontSize:10,background:"#fef2f2",color:"#991b1b",border:"1px solid #fca5a5",padding:"1px 6px",borderRadius:6,fontWeight:700}}>ANULADA</span>}
+                    {(l.shift&&l.shift!=="all")&&<SlotTag slot={l.shift}/>}
                   </div>
-                  <div style={{fontSize:11,color:"#64748b"}}>{l.startDate} - {l.endDate}</div>
-                  {l.cancelled&&l.cancelReason&&<div style={{fontSize:10,color:"#991b1b",marginTop:2}}>Motivo: {l.cancelReason}</div>}
+                  <div style={{fontSize:12,color:"#64748b"}}>
+                    {fmtS(l.startDate)} - {fmtS(l.endDate)} · {l.cancelled?"no computa":fmtN(nd)+" "+(nd===1?"día hábil":"días hábiles")}
+                  </div>
+                  {l.cancelled&&<div style={{fontSize:11,color:"#991b1b",marginTop:2}}><b>ANULADA</b>{l.cancelledAt?" el "+fmtS(l.cancelledAt):""}{l.cancelReason?" · Motivo: "+l.cancelReason:""}</div>}
+                  {!l.cancelled&&l.reactivatedAt&&<div style={{fontSize:11,color:"#166534",marginTop:2}}>Reactivada el {fmtS(l.reactivatedAt)}</div>}
                 </div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
                   <span style={{fontSize:10,color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:600,background:l.validated?"#22c55e":"#94a3b8"}}>Validado</span>
@@ -786,55 +1387,74 @@
                 <div style={{display:"flex",gap:4}}>
                   {!l.cancelled&&<button style={{background:"#fef2f2",color:"#991b1b",border:"1px solid #fca5a5",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontFamily:"inherit"}} onClick={function(){setCancelTarget(l.id);setCancelReason("");}}>Anular</button>}
                   {l.cancelled&&<button style={{background:"#f0fdf4",color:"#166534",border:"1px solid #bbf7d0",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontFamily:"inherit"}} onClick={function(){doReactivate(l.id);}}>Reactivar</button>}
-                  <button style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:13}} onClick={function(){onEdit(l);}}>Editar</button>
+                  <button style={{background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}} onClick={function(){onEdit(l);}}>Editar</button>
                 </div>
               </div>
             );
           });
 
-          var hdrCells=["Medico"].concat(LT.map(function(x){return x.c;})).map(function(c){return <div key={c} style={{padding:"8px",textAlign:"center"}}>{c}</div>;});
-          var srows=Object.keys(DR).map(function(doc){
-            var cells=LT.map(function(lt){return <div key={lt.c} style={{padding:"8px",textAlign:"center",fontSize:12,color:sum[doc][lt.c]>0?"#ef4444":"#94a3b8"}}>{sum[doc][lt.c]||0}</div>;});
+          var gcols="80px repeat("+LT.length+",1fr) 60px";
+          var hdrCells=["Médico"].concat(LT.map(function(x){return x.c;})).concat(["Total"]).map(function(c){return <div key={c} style={{padding:"8px 4px",textAlign:"center"}}>{c}</div>;});
+          var srows=docsAll().filter(function(doc){var d=DOCS.find(function(x){return x.code===doc;});return(!d.on||d.on<=sumY+"-12-31")&&(!d.off||d.off>sumY+"-01-01");}).map(function(doc){
+            var tot=0;
+            var cells=LT.map(function(lt){var v=sum[doc][lt.c]||0;tot+=v;return <div key={lt.c} style={{padding:"8px 4px",textAlign:"center",fontSize:13,color:v>0?"#ef4444":"#94a3b8",fontWeight:v>0?700:400}}>{fmtN(v)}</div>;});
             return (
-              <div key={doc} style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",borderBottom:"1px solid #f1f5f9"}}>
+              <div key={doc} style={{display:"grid",gridTemplateColumns:gcols,borderBottom:"1px solid #f1f5f9"}}>
                 <div style={{padding:"8px",fontWeight:700,color:DR[doc].color,textAlign:"center"}}>{doc}</div>
                 {cells}
+                <div style={{padding:"8px 4px",textAlign:"center",fontSize:13,fontWeight:800,color:"#0f172a"}}>{fmtN(tot)}</div>
               </div>
             );
           });
+          var selSt=Object.assign({},S.sel,{width:"auto",padding:"5px 10px",fontSize:12});
 
           return (
-            <div style={{padding:24,maxWidth:900,margin:"0 auto"}}>
+            <div style={{padding:24,maxWidth:980,margin:"0 auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <h2 style={{fontSize:18,fontWeight:700,color:"#0f172a",margin:0}}>Gestion de Ausencias</h2>
+                <h2 style={Object.assign({},S.h2,{margin:0})}>Gestión de ausencias</h2>
                 <button style={S.addBtn} onClick={onAdd}>+ Nueva</button>
               </div>
-              <div style={{display:"flex",gap:6,marginBottom:14}}>
-                {[["all","Todas"],["active","Activas"],["cancelled","Anuladas"]].map(function(x){
-                  return <button key={x[0]} style={Object.assign({},S.fChip,{background:filterCancelled===x[0]?"#0f172a":"#f1f5f9",color:filterCancelled===x[0]?"#fff":"#475569",borderColor:filterCancelled===x[0]?"#0f172a":"#e2e8f0",fontSize:12,padding:"5px 12px"})} onClick={function(){setFilterCancelled(x[0]);}}>{x[1]}</button>;
-                })}
+              <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:12,marginBottom:14,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  {[["all","Todas"],["active","Activas"],["cancelled","Anuladas"]].map(function(x){return <LChip key={x[0]} on={fSt===x[0]} onClick={function(){setFSt(x[0]);}}>{x[1]}</LChip>;})}
+                  <span style={{width:1,height:20,background:"#e2e8f0",margin:"0 4px"}}/>
+                  <LChip on={rest} onClick={function(){setRest(!rest);}}>Lo que resta del año</LChip>
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                  <select style={selSt} value={fDoc} onChange={function(e){setFDoc(e.target.value);}}><option value="all">Todos los médicos</option>{docsAll().map(function(d){return <option key={d} value={d}>{d}</option>;})}</select>
+                  <select style={selSt} value={fType} onChange={function(e){setFType(e.target.value);}}><option value="all">Todos los tipos</option>{LT.map(function(t){return <option key={t.c} value={t.c}>{t.l}</option>;})}</select>
+                  <select style={Object.assign({},selSt,rest?{opacity:0.4}:{})} disabled={rest} value={fYear} onChange={function(e){setFYear(e.target.value);}}><option value="all">Todos los años</option>{years.map(function(y){return <option key={y} value={String(y)}>{y}</option>;})}</select>
+                  <select style={Object.assign({},selSt,rest?{opacity:0.4}:{})} disabled={rest} value={fMon} onChange={function(e){setFMon(e.target.value);}}><option value="all">Todos los meses</option>{MES.map(function(m,i){return <option key={m} value={p2(i+1)}>{m}</option>;})}</select>
+                  <span style={{fontSize:12,color:"#64748b",marginLeft:"auto"}}>{filtered.length} {filtered.length===1?"ausencia":"ausencias"}</span>
+                </div>
               </div>
-              {filtered.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24}}>No hay ausencias</div>}
+              {filtered.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:24}}>No hay ausencias con estos filtros</div>}
               {cards}
-              <h3 style={{fontSize:16,fontWeight:700,color:"#0f172a",marginTop:32,marginBottom:4}}>Resumen Anual</h3>
-              <p style={{fontSize:11,color:"#64748b",marginBottom:12}}>Solo ausencias activas</p>
-              <div style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid #e2e8f0"}}>
-                <div style={{display:"grid",gridTemplateColumns:"100px repeat(7,1fr)",background:"#0f172a",color:"#94a3b8",fontSize:10,fontWeight:700,textTransform:"uppercase"}}>{hdrCells}</div>
-                {srows}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:32,marginBottom:4}}>
+                <h3 style={{fontSize:16,fontWeight:700,color:"#0f172a",margin:0}}>Resumen anual</h3>
+                <select style={selSt} value={sumY} onChange={function(e){setSumY(+e.target.value);}}>{years.map(function(y){return <option key={y} value={y}>{y}</option>;})}</select>
               </div>
+              <p style={{fontSize:12,color:"#64748b",marginBottom:12}}>Días hábiles. No cuentan las ausencias anuladas, los festivos ni los fines de semana. Una ausencia de solo mañana o solo tarde cuenta como 1 día.</p>
+              <div style={{background:"#fff",borderRadius:10,overflowX:"auto",border:"1px solid #e2e8f0"}}>
+                <div style={{minWidth:720}}>
+                  <div style={{display:"grid",gridTemplateColumns:gcols,background:"#0f172a",color:"#94a3b8",fontSize:11,fontWeight:700}}>{hdrCells}</div>
+                  {srows}
+                </div>
+              </div>
+              <div style={{fontSize:11,color:"#64748b",marginTop:8,display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>{LT.map(function(t){return <span key={t.c}><b>{t.c}</b> {t.l}</span>;})}</div>
 
               {cancelTarget&&(
                 <div style={S.overlay}>
                   <div style={S.modal}>
                     <h3 style={{fontSize:16,fontWeight:700,margin:"0 0 12px",color:"#991b1b"}}>Anular ausencia</h3>
-                    <p style={{fontSize:13,color:"#475569",marginBottom:16}}>Puedes indicar el motivo de la anulacion (opcional).</p>
+                    <p style={{fontSize:13,color:"#475569",marginBottom:16}}>El médico quedará disponible en el dashboard esos días. La ausencia seguirá registrada aquí como anulada y no computará en el resumen.</p>
                     <div style={{marginBottom:16}}>
-                      <label style={S.lbl}>Motivo de anulacion</label>
+                      <label style={S.lbl}>Motivo de anulación (opcional)</label>
                       <input type="text" style={S.inp} placeholder="Ej: cambio de planes, error de registro..." value={cancelReason} onChange={function(e){setCancelReason(e.target.value);}}/>
                     </div>
                     <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                       <button style={S.btnS} onClick={function(){setCancelTarget(null);setCancelReason("");}}>Cancelar</button>
-                      <button style={Object.assign({},S.btnP,{background:"#ef4444"})} onClick={doCancel}>Confirmar anulacion</button>
+                      <button style={Object.assign({},S.btnP,{background:"#ef4444"})} onClick={doCancel}>Confirmar anulación</button>
                     </div>
                   </div>
                 </div>
@@ -843,36 +1463,333 @@
           );
         }
 
-        function LModal({lv,onSave,onDel,onClose}){
-          var [form,setForm]=useState(lv||{doctor:"RGS",type:"VAC",startDate:"",endDate:"",validated:false,informed:false});
-          function set(k,v){setForm(function(p){return Object.assign({},p,{[k]:v});});}
-          var docOpts=Object.keys(DR).map(function(d){return <option key={d} value={d}>{d}</option>;});
+        function LModal({lv,fes,onSave,onDel,onClose}){
+          var [form,setForm]=useState(lv||{doctor:"RGS",type:"VAC",shift:"all",startDate:"",endDate:"",validated:false,informed:false});
+          var [err,setErr]=useState("");
+          function set(k,v){setForm(function(p){var n=Object.assign({},p,{[k]:v});if(k==="startDate"&&(!p.endDate||p.endDate<v))n.endDate=v;return n;});setErr("");}
+          var docOpts=docsCurrent(form.doctor).map(function(d){return <option key={d} value={d}>{d}</option>;});
           var typeOpts=LT.map(function(lt){return <option key={lt.c} value={lt.c}>{lt.l} ({lt.c})</option>;});
+          var nd=lvDays(form,fes);
+          function save(){
+            if(!form.startDate||!form.endDate){setErr("Indica las fechas de inicio y fin.");return;}
+            if(form.endDate<form.startDate){setErr("La fecha de fin es anterior a la de inicio.");return;}
+            onSave(form);
+          }
           return (
             <div style={S.overlay}>
               <div style={S.modal}>
-                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>{lv?"Editar":"Nueva"} Ausencia</h3>
-                <div style={{marginBottom:14}}><label style={S.lbl}>Medico</label><select style={S.sel} value={form.doctor} onChange={function(e){set("doctor",e.target.value);}}>{docOpts}</select></div>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>{lv?"Editar":"Nueva"} ausencia</h3>
+                <div style={{marginBottom:14}}><label style={S.lbl}>Médico</label><select style={S.sel} value={form.doctor} onChange={function(e){set("doctor",e.target.value);}}>{docOpts}</select></div>
                 <div style={{marginBottom:14}}><label style={S.lbl}>Tipo</label><select style={S.sel} value={form.type} onChange={function(e){set("type",e.target.value);}}>{typeOpts}</select></div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div style={{marginBottom:14}}>
+                  <label style={S.lbl}>Duración</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {["all","am","pm"].map(function(x){return <LChip key={x} on={(form.shift||"all")===x} onClick={function(){set("shift",x);}}>{x==="all"?"Todo el día":"Solo "+SHL[x].toLowerCase()}</LChip>;})}
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:8}}>
                   <div><label style={S.lbl}>Inicio</label><input type="date" style={S.inp} value={form.startDate} onChange={function(e){set("startDate",e.target.value);}}/></div>
-                  <div><label style={S.lbl}>Fin</label><input type="date" style={S.inp} value={form.endDate} onChange={function(e){set("endDate",e.target.value);}}/></div>
+                  <div><label style={S.lbl}>Fin</label><input type="date" style={S.inp} value={form.endDate} min={form.startDate||undefined} onChange={function(e){set("endDate",e.target.value);}}/></div>
                 </div>
+                {form.startDate&&form.endDate&&form.endDate>=form.startDate&&<div style={{fontSize:12,color:"#475569",marginBottom:14}}>Computa <b>{fmtN(nd)}</b> {nd===1?"día hábil":"días hábiles"} (sin festivos ni fines de semana).</div>}
                 <div style={{display:"flex",gap:16,marginBottom:16}}>
-                  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#475569",cursor:"pointer"}}><input type="checkbox" checked={form.validated} onChange={function(e){set("validated",e.target.checked);}}/> Validado</label>
-                  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#475569",cursor:"pointer"}}><input type="checkbox" checked={form.informed} onChange={function(e){set("informed",e.target.checked);}}/> Informado</label>
+                  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#475569",cursor:"pointer"}}><input type="checkbox" checked={!!form.validated} onChange={function(e){set("validated",e.target.checked);}}/> Validado</label>
+                  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#475569",cursor:"pointer"}}><input type="checkbox" checked={!!form.informed} onChange={function(e){set("informed",e.target.checked);}}/> Informado</label>
                 </div>
+                {err&&<div style={S.err}>{err}</div>}
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                   {lv&&<button style={S.btnD} onClick={function(){onDel(lv.id);}}>Eliminar</button>}
                   <button style={S.btnS} onClick={onClose}>Cancelar</button>
-                  <button style={S.btnP} onClick={function(){onSave(form);}}>Guardar</button>
+                  <button style={S.btnP} onClick={save}>Guardar</button>
                 </div>
               </div>
             </div>
           );
         }
 
-        function ABModal({abr,onSave,onClose}){
+        // Plantilla de médicos: altas y bajas a partir de una fecha
+        function DocModal({docs,setDocs,onClose}){
+          var today=ld(new Date());
+          var used=docs.map(function(d){return d.color;});
+          var freePal=PAL.find(function(c){return!used.includes(c.color);})||PAL[0];
+          var [nf,setNf]=useState({code:"",name:"",on:"",color:freePal.color,bg:freePal.bg});
+          var [edit,setEdit]=useState(null);
+          var [ef,setEf]=useState(null);
+          var [err,setErr]=useState("");
+          function addDoc(){
+            var c=(nf.code||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+            if(c.length<2||c.length>5){setErr("El código debe tener entre 2 y 5 letras (por ejemplo LGM).");return;}
+            if(docs.some(function(d){return d.code===c;})){setErr("Ya existe un médico con el código "+c+".");return;}
+            setDocs(function(p){return p.concat([{code:c,name:nf.name.trim(),color:nf.color,bg:nf.bg,on:nf.on||"",off:""}]);});
+            var nx=PAL.find(function(x){return x.color!==nf.color&&!used.includes(x.color);})||PAL[0];
+            setNf({code:"",name:"",on:"",color:nx.color,bg:nx.bg});setErr("");
+          }
+          function startEdit(d){setEdit(d.code);setEf(Object.assign({},d));setErr("");}
+          function saveEdit(){
+            if(ef.on&&ef.off&&ef.off<=ef.on){setErr("La fecha de baja tiene que ser posterior a la de alta.");return;}
+            setDocs(function(p){return p.map(function(x){return x.code===edit?ef:x;});});
+            setEdit(null);setEf(null);setErr("");
+          }
+          function status(d){
+            if(d.off&&d.off<=today)return{t:"Baja desde "+fmtS(d.off),c:"#991b1b",b:"#fef2f2"};
+            if(d.on&&d.on>today)return{t:"Alta el "+fmtS(d.on),c:"#0369a1",b:"#e0f2fe"};
+            if(d.off)return{t:"Activo · baja el "+fmtS(d.off),c:"#92400e",b:"#fef3c7"};
+            return{t:"Activo",c:"#166534",b:"#dcfce7"};
+          }
+          function swatches(cur,onPick){
+            return <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{PAL.map(function(c){return <button key={c.color} title={c.color} onClick={function(){onPick(c);}} style={{width:22,height:22,borderRadius:"50%",background:c.bg,border:"3px solid "+(cur===c.color?c.color:c.bg),outline:cur===c.color?"2px solid #0f172a":"none",cursor:"pointer"}}/>;})}</div>;
+          }
+          var rows=docs.map(function(d){
+            var st=status(d);
+            if(edit===d.code&&ef)return (
+              <div key={d.code} style={{border:"1px solid #93c5fd",background:"#f8fbff",borderRadius:8,padding:10,margin:"6px 0",display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:800,color:ef.color,background:ef.bg,padding:"2px 10px",borderRadius:8}}>{d.code}</span><input type="text" style={S.inp} placeholder="Nombre (opcional)" value={ef.name||""} onChange={function(e){setEf(Object.assign({},ef,{name:e.target.value}));}}/></div>
+                {swatches(ef.color,function(c){setEf(Object.assign({},ef,{color:c.color,bg:c.bg}));})}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div><label style={S.lbl}>Activo desde</label><input type="date" style={S.inp} value={ef.on||""} onChange={function(e){setEf(Object.assign({},ef,{on:e.target.value}));}}/></div>
+                  <div><label style={S.lbl}>Baja a partir de</label><input type="date" style={S.inp} value={ef.off||""} onChange={function(e){setEf(Object.assign({},ef,{off:e.target.value}));}}/></div>
+                </div>
+                <div style={{fontSize:11,color:"#64748b"}}>Deja "Baja a partir de" vacío si sigue en el servicio. Desde esa fecha no se le podrá asignar actividad; su historial se conserva.</div>
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button style={Object.assign({},S.btnS,{padding:"4px 12px"})} onClick={function(){setEdit(null);setErr("");}}>Cancelar</button><button style={Object.assign({},S.btnP,{padding:"4px 12px"})} onClick={saveEdit}>Guardar</button></div>
+              </div>
+            );
+            return (
+              <div key={d.code} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #f1f5f9",fontSize:13,opacity:d.off&&d.off<=today?0.6:1}}>
+                <span style={{fontWeight:800,color:d.color,background:d.bg,padding:"2px 10px",borderRadius:8,minWidth:52,textAlign:"center"}}>{d.code}</span>
+                <span style={{flex:1,color:"#475569"}}>{d.name||""}{d.on?<span style={{fontSize:11,color:"#94a3b8"}}>{d.name?" · ":""}alta {fmtS(d.on)}</span>:null}</span>
+                <span style={{fontSize:11,fontWeight:700,color:st.c,background:st.b,padding:"1px 8px",borderRadius:8}}>{st.t}</span>
+                <button style={Object.assign({},S.btnS,{padding:"3px 10px",fontSize:12})} onClick={function(){startEdit(d);}}>Editar</button>
+              </div>
+            );
+          });
+          return (
+            <div style={S.overlay}>
+              <div style={Object.assign({},S.modal,{maxWidth:560})}>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Médicos del servicio</h3>
+                <p style={{fontSize:12,color:"#64748b",margin:"0 0 12px"}}>Para quitar a un médico, edítalo y pon la fecha de baja. Si en la semana tipo tenía actividades asignadas, aparecerán como "no activo" y saltará una alerta hasta que las reasignes en Semana tipo.</p>
+                <div style={{maxHeight:260,overflowY:"auto",borderTop:"1px solid #e2e8f0",marginBottom:14}}>{rows}</div>
+                <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:10,padding:12}}>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>Añadir médico</div>
+                  <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:10,marginBottom:8}}>
+                    <div><label style={S.lbl}>Código</label><input type="text" style={S.inp} maxLength={5} placeholder="LGM" value={nf.code} onChange={function(e){setNf(Object.assign({},nf,{code:e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"")}));setErr("");}}/></div>
+                    <div><label style={S.lbl}>Nombre (opcional)</label><input type="text" style={S.inp} value={nf.name} onChange={function(e){setNf(Object.assign({},nf,{name:e.target.value}));}}/></div>
+                  </div>
+                  <div style={{marginBottom:8}}><label style={S.lbl}>Color</label>{swatches(nf.color,function(c){setNf(Object.assign({},nf,{color:c.color,bg:c.bg}));})}</div>
+                  <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+                    <div style={{flex:1}}><label style={S.lbl}>Activo a partir de (vacío = ya activo)</label><input type="date" style={S.inp} value={nf.on} onChange={function(e){setNf(Object.assign({},nf,{on:e.target.value}));}}/></div>
+                    <button style={S.btnP} onClick={addDoc}>Añadir</button>
+                  </div>
+                </div>
+                {err&&<div style={Object.assign({},S.err,{marginTop:12})}>{err}</div>}
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button style={S.btnS} onClick={onClose}>Cerrar</button></div>
+              </div>
+            </div>
+          );
+        }
+
+        // Días libres fijos por médico (p. ej. todos los lunes)
+        function FDModal({fds,setFds,onClose}){
+          var y=new Date().getFullYear();
+          var [f,setF]=useState({doctor:"RGS",weekday:"mon",shift:"all",from:ld(new Date()),to:y+"-12-31",note:""});
+          var [err,setErr]=useState("");
+          function set(k,v){setF(function(p){return Object.assign({},p,{[k]:v});});setErr("");}
+          function add(){
+            if(f.to&&f.from&&f.to<f.from){setErr("La fecha final es anterior a la inicial.");return;}
+            setFds(function(p){return p.concat([Object.assign({},f,{id:""+Date.now()})]);});
+          }
+          var list=fds.slice().sort(function(a,b){return a.doctor.localeCompare(b.doctor)||DK.indexOf(a.weekday)-DK.indexOf(b.weekday);}).map(function(x){
+            var d=DR[x.doctor];
+            return (
+              <div key={x.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #f1f5f9",fontSize:13}}>
+                <span style={{fontWeight:700,color:d.color,background:d.bg,padding:"1px 8px",borderRadius:8}}>{x.doctor}</span>
+                <span>Todos los {DN[DK.indexOf(x.weekday)].toLowerCase()}</span><SlotTagA sh={x.shift}/>
+                <span style={{fontSize:11,color:"#64748b"}}>{x.from?fmtS(x.from):"siempre"} → {x.to?fmtS(x.to):"sin fin"}</span>
+                {x.note&&<span style={{fontSize:11,color:"#94a3b8"}}>· {x.note}</span>}
+                <button style={Object.assign({},S.btnD,{padding:"2px 8px",fontSize:11,marginLeft:"auto"})} onClick={function(){ask("¿Quitar el día libre de "+x.doctor+" ("+DN[DK.indexOf(x.weekday)].toLowerCase()+")?",function(){setFds(function(p){return p.filter(function(z){return z.id!==x.id;});});},"Quitar");}}>Quitar</button>
+              </div>
+            );
+          });
+          return (
+            <div style={S.overlay}>
+              <div style={Object.assign({},S.modal,{maxWidth:560})}>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Días libres fijos</h3>
+                <p style={{fontSize:12,color:"#64748b",margin:"0 0 14px"}}>Ese día el médico no se podrá asignar a ninguna actividad. Si ya estaba asignado, aparecerá como "libre" y saltará una alerta.</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label style={S.lbl}>Médico</label><select style={S.sel} value={f.doctor} onChange={function(e){set("doctor",e.target.value);}}>{docsCurrent(f.doctor).map(function(d){return <option key={d} value={d}>{d}</option>;})}</select></div>
+                  <div><label style={S.lbl}>Día</label><select style={S.sel} value={f.weekday} onChange={function(e){set("weekday",e.target.value);}}>{DK.map(function(k,i){return <option key={k} value={k}>{DN[i]}</option>;})}</select></div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <label style={S.lbl}>Duración</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {["all","am","pm"].map(function(x){return <LChip key={x} on={f.shift===x} onClick={function(){set("shift",x);}}>{x==="all"?"Todo el día":"Solo "+SHL[x].toLowerCase()}</LChip>;})}
+                  </div>
+                  <div style={{fontSize:11,color:"#64748b",marginTop:4}}>{f.shift==="all"?"No podrá tener ninguna actividad ese día.":f.shift==="am"?"Libre por la mañana: sí se le puede asignar actividad de tarde.":"Libre por la tarde: sí se le puede asignar actividad de mañana."}</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label style={S.lbl}>Desde</label><input type="date" style={S.inp} value={f.from} onChange={function(e){set("from",e.target.value);}}/></div>
+                  <div><label style={S.lbl}>Hasta</label><input type="date" style={S.inp} value={f.to} onChange={function(e){set("to",e.target.value);}}/></div>
+                </div>
+                <div style={{marginBottom:10}}><label style={S.lbl}>Nota (opcional)</label><input type="text" style={S.inp} value={f.note} placeholder="Ej: reducción de jornada" onChange={function(e){set("note",e.target.value);}}/></div>
+                {err&&<div style={S.err}>{err}</div>}
+                <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}><button style={S.btnP} onClick={add}>Añadir día libre</button></div>
+                <div style={{maxHeight:220,overflowY:"auto",borderTop:"1px solid #e2e8f0"}}>
+                  {list}
+                  {fds.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:16}}>Sin días libres configurados</div>}
+                </div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button style={S.btnS} onClick={onClose}>Cerrar</button></div>
+              </div>
+            </div>
+          );
+        }
+
+        // Semana tipo: estructura habitual del equipo, con versiones que se aplican desde una fecha
+        function TplView({tps,setTps,fds,abActive,abOff}){
+          var today=ld(new Date());
+          var activeV=tplVersion(tps,today);
+          function clone(t){var c=JSON.parse(JSON.stringify(t));["A","B"].forEach(function(w){c[w]=c[w]||{};DK.forEach(function(dk){c[w][dk]=c[w][dk]||{am:[],pm:[]};c[w][dk].am=c[w][dk].am||[];c[w][dk].pm=c[w][dk].pm||[];});});return c;}
+          var [draft,setDraft]=useState(function(){return clone(activeV?activeV.tpl:DEF_TPL);});
+          var [srcLbl,setSrcLbl]=useState(activeV?"versión vigente desde "+fmtS(activeV.from):"estructura original");
+          var [wk0,setWk]=useState("A");
+          var [dirty,setDirty]=useState(false);
+          var nm=mon(new Date());nm.setDate(nm.getDate()+7);
+          var [from,setFrom]=useState(ld(nm));
+          var abOn=abActive(from||ld(new Date())); // A/B según la fecha desde la que se aplica
+          var wk=abOn?wk0:"A";
+          var [addSel,setAddSel]=useState({});
+          var [msg,setMsg]=useState(null);
+
+          function mut(fn){setDraft(function(p){var n=clone(p);fn(n);return n;});setDirty(true);setMsg(null);}
+          function upd(dk,sl,i,patch){mut(function(n){Object.assign(n[wk][dk][sl][i],patch);});}
+          function rm(dk,sl,i){mut(function(n){n[wk][dk][sl].splice(i,1);});}
+          function add(dk,sl){
+            var a=addSel[dk+"_"+sl]||{act:"C43",name:"C"};
+            var act=a.act;
+            if(act==="OTRA"){act=normC(a.name);if(!act||act==="C"){setMsg({e:1,t:"Escribe el nombre de la consulta (empieza por C)."});return;}}
+            if(draft[wk][dk][sl].some(function(x){return x.key===act;})){setMsg({e:1,t:act+" ya existe en "+DN[DK.indexOf(dk)]+" "+(sl==="am"?"mañana":"tarde")+"."});return;}
+            mut(function(n){var it={key:act,act:act,label:act,doc:null};if(isPmEndo(act,sl))it.pay="jornada";n[wk][dk][sl].push(it);});
+          }
+          function setAdd(dk,sl,patch){setAddSel(function(p){var k=dk+"_"+sl;return Object.assign({},p,{[k]:Object.assign({act:"C43",name:"C"},p[k]||{},patch)});});}
+          function load(v){
+            function go(){setDraft(clone(v?v.tpl:DEF_TPL));setSrcLbl(v?"versión desde "+fmtS(v.from):"estructura original");setDirty(false);setMsg(null);}
+            if(dirty)ask("Hay cambios sin guardar. ¿Descartarlos?",go,"Descartar cambios");else go();
+          }
+          function save(){
+            if(!from){setMsg({e:1,t:"Indica a partir de qué fecha se aplica."});return;}
+            if(from<today){ask("La fecha es anterior a hoy: también cambiará semanas pasadas. ¿Continuar?",doSave,"Guardar igualmente");return;}
+            doSave();
+          }
+          function doSave(){
+            var v={id:""+Date.now(),from:from,tpl:clone(draft),created:today};
+            setTps(function(p){return p.filter(function(x){return x.from!==from;}).concat([v]).sort(function(a,b){return a.from.localeCompare(b.from);});});
+            setDirty(false);setSrcLbl("versión desde "+fmtS(from));
+            setMsg({e:0,t:"Semana tipo guardada. Se aplica a partir del "+fmtS(from)+"."});
+          }
+          function delV(v){
+            ask("¿Eliminar la versión que se aplica desde el "+fmtS(v.from)+"? Esas semanas volverán a usar la versión anterior.",function(){
+              setTps(function(p){return p.filter(function(x){return x.id!==v.id;});});
+            },"Eliminar versión");
+          }
+          function freeOn(doc,dk,sl){return fds.some(function(f){return f.doctor===doc&&f.weekday===dk&&(!f.to||f.to>=from)&&(f.shift==="all"||f.shift===sl);});}
+
+          var addOpts=BASE_ACTS.map(function(a){return <option key={a} value={a}>{a}</option>;}).concat([<option key="OTRA" value="OTRA">Otra consulta…</option>]);
+          var cols=DK.map(function(dk,di){
+            var day=draft[wk][dk];
+            function block(sl){
+              var rows=day[sl].map(function(it,i){
+                var fr=it.doc&&(freeOn(it.doc,dk,sl)||!docActive(it.doc,from));
+                return (
+                  <div key={it.key} style={{border:"1px solid #e2e8f0",borderRadius:7,padding:6,background:"#fff",display:"flex",flexDirection:"column",gap:4}}>
+                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      <input type="text" value={it.label||it.key} title="Nombre que se muestra" onChange={function(e){upd(dk,sl,i,{label:e.target.value});}} style={Object.assign({},S.inp,{padding:"3px 6px",fontSize:13,fontWeight:700,flex:1,minWidth:0})}/>
+                      <button style={S.xBtn} title="Quitar" onClick={function(){rm(dk,sl,i);}}>✕</button>
+                    </div>
+                    <select value={it.doc||""} onChange={function(e){upd(dk,sl,i,{doc:e.target.value||null});}} style={Object.assign({},S.sel,{padding:"3px 6px",fontSize:12},fr?{borderColor:"#ef4444",color:"#991b1b"}:{})}>
+                      <option value="">Sin designar</option>
+                      {docsOn(from).concat(it.doc&&!docsOn(from).includes(it.doc)?[it.doc]:[]).map(function(d){return <option key={d} value={d}>{d}{!docActive(d,from)?" (no activo)":""}{freeOn(d,dk,sl)?" (día libre)":""}</option>;})}
+                    </select>
+                    {isPayable(it.act,sl)&&<select value={it.pay||"jornada"} onChange={function(e){upd(dk,sl,i,{pay:e.target.value});}} style={Object.assign({},S.sel,{padding:"3px 6px",fontSize:11})}><option value="jornada">Dentro de jornada</option><option value="extra">Extra (pagada)</option></select>}
+                    {fr&&<div style={{fontSize:10,color:"#991b1b"}}>{it.doc} {docActive(it.doc,from)?"tiene día libre":"no está activo en esa fecha"}</div>}
+                  </div>
+                );
+              });
+              var a=addSel[dk+"_"+sl]||{act:"C43",name:"C"};
+              return (
+                <div style={sl==="am"?S.amBlk:S.pmBlk}>
+                  <div style={sl==="am"?S.amLbl:S.pmLbl}>{sl==="am"?"Mañana":"Tarde"}</div>
+                  <div style={{padding:6,display:"flex",flexDirection:"column",gap:5}}>
+                    {rows}
+                    {rows.length===0&&<div style={{fontSize:11,color:"#94a3b8",textAlign:"center"}}>Sin actividad</div>}
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",borderTop:"1px dashed #cbd5e1",paddingTop:5}}>
+                      <select value={a.act} onChange={function(e){setAdd(dk,sl,{act:e.target.value});}} style={Object.assign({},S.sel,{padding:"3px 4px",fontSize:12,width:"auto",flex:1})}>{addOpts}</select>
+                      {a.act==="OTRA"&&<input type="text" value={a.name} onChange={function(e){setAdd(dk,sl,{name:normC(e.target.value)||"C"});}} style={Object.assign({},S.inp,{padding:"3px 6px",fontSize:12,width:70})}/>}
+                      <button style={Object.assign({},S.btnP,{padding:"3px 10px",fontSize:12})} onClick={function(){add(dk,sl);}}>+</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div key={dk} style={S.dCol}>
+                <div style={S.dHdr}><span style={S.dName}>{DN[di]}</span></div>
+                {block("am")}
+                {block("pm")}
+              </div>
+            );
+          });
+
+          var vers=tps.slice().sort(function(a,b){return b.from.localeCompare(a.from);}).map(function(v){
+            var act=activeV&&activeV.id===v.id,fut=v.from>today;
+            return (
+              <div key={v.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #f1f5f9",fontSize:13}}>
+                <span>Desde <b>{fmtS(v.from)}</b></span>
+                {act&&<span style={{fontSize:10,background:"#dcfce7",color:"#166534",padding:"1px 7px",borderRadius:8,fontWeight:700}}>Vigente</span>}
+                {fut&&<span style={{fontSize:10,background:"#e0f2fe",color:"#0369a1",padding:"1px 7px",borderRadius:8,fontWeight:700}}>Programada</span>}
+                <span style={{fontSize:11,color:"#94a3b8"}}>guardada el {fmtS(v.created)}</span>
+                <button style={Object.assign({},S.btnS,{padding:"2px 8px",fontSize:11,marginLeft:"auto"})} onClick={function(){load(v);}}>Cargar</button>
+                <button style={Object.assign({},S.btnD,{padding:"2px 8px",fontSize:11})} onClick={function(){delV(v);}}>Eliminar</button>
+              </div>
+            );
+          });
+
+          return (
+            <div style={{padding:"16px 12px"}}>
+              <div style={{maxWidth:1040,margin:"0 auto"}}>
+                <h2 style={Object.assign({},S.h2,{marginBottom:4})}>Semana tipo</h2>
+                <p style={{fontSize:13,color:"#475569",margin:"0 0 14px",maxWidth:760}}>Actividad habitual del equipo. {abOn?"Se replica automáticamente todas las semanas, alternando A y B"+(abOff?" (hasta el "+fmtS(abOff)+"; desde entonces, un solo tipo de semana).":"."):"Se replica automáticamente todas las semanas (un solo tipo de semana desde el "+(abOff>"2000-12-31"?fmtS(abOff):"inicio")+")."} Los cambios que hagas aquí se aplican a partir de la fecha que indiques; los cambios puntuales hechos en el dashboard para un día concreto se mantienen.</p>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:12,marginBottom:14}}>
+                  {abOn&&(
+                  <div style={{display:"flex",gap:6}}>
+                    <button style={Object.assign({},S.fChip,{fontSize:13,padding:"5px 14px",background:wk==="A"?"#3b82f6":"#f1f5f9",color:wk==="A"?"#fff":"#475569",borderColor:wk==="A"?"#3b82f6":"#e2e8f0"})} onClick={function(){setWk("A");}}>Semana A</button>
+                    <button style={Object.assign({},S.fChip,{fontSize:13,padding:"5px 14px",background:wk==="B"?"#8b5cf6":"#f1f5f9",color:wk==="B"?"#fff":"#475569",borderColor:wk==="B"?"#8b5cf6":"#e2e8f0"})} onClick={function(){setWk("B");}}>Semana B</button>
+                  </div>
+                  )}
+                  <span style={{fontSize:12,color:"#64748b"}}>Editando: {srcLbl}{dirty?" (con cambios sin guardar)":""}</span>
+                  <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+                    <div><label style={S.lbl}>Aplicar a partir de</label><input type="date" style={Object.assign({},S.inp,{width:160})} value={from} onChange={function(e){setFrom(e.target.value);}}/></div>
+                    <button style={Object.assign({},S.btnP,dirty?{}:{opacity:0.6})} onClick={save}>Guardar semana tipo</button>
+                  </div>
+                </div>
+                {msg&&<div style={msg.e?S.err:S.ok}>{msg.t}</div>}
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <div style={Object.assign({},S.dGrid,{margin:"0 auto"})}>{cols}</div>
+              </div>
+              <div style={{maxWidth:1040,margin:"20px auto 0",background:"#fff",border:"1px solid #e2e8f0",borderRadius:10,padding:14}}>
+                <div style={{display:"flex",alignItems:"center",marginBottom:6}}>
+                  <h3 style={{fontSize:15,fontWeight:700,margin:0}}>Versiones guardadas</h3>
+                  <button style={Object.assign({},S.btnS,{padding:"3px 10px",fontSize:12,marginLeft:"auto"})} onClick={function(){load(null);}}>Cargar estructura original</button>
+                </div>
+                {vers}
+                {tps.length===0&&<div style={{fontSize:12,color:"#94a3b8",padding:"6px 0"}}>Todavía no hay versiones guardadas: se usa la estructura original.</div>}
+              </div>
+            </div>
+          );
+        }
+
+        function ABModal({abr,abOff,setAbOff,onSave,onClose}){
+          var nmo=mon(new Date());nmo.setDate(nmo.getDate()+7);
+          var [mode,setMode]=useState(abOff?"off":"on");
+          var [offD,setOffD]=useState(abOff&&abOff>"2000-12-31"?abOff:ld(nmo));
           var tm=ld(mon(new Date()));
           var [d,setD]=useState(tm),[t,setT]=useState("A");
           var prop=abr.filter(function(r){return r.date!==d;}).concat([{date:d,type:t}]);
@@ -880,7 +1797,7 @@
           var prevRows=prev.map(function(x,i){
             return (
               <div key={x.ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:3}}>
-                <span style={{color:"#475569"}}>{i===0?"Esta semana":i===1?"Proxima":"+"+(i)+"s"} ({x.ds})</span>
+                <span style={{color:"#475569"}}>{i===0?"Esta semana":i===1?"Próxima":"+"+(i)+"s"} ({x.ds})</span>
                 <span style={{fontWeight:700,padding:"1px 10px",borderRadius:10,color:"#fff",background:x.wt==="A"?"#3b82f6":"#8b5cf6"}}>Sem. {x.wt}</span>
               </div>
             );
@@ -891,12 +1808,34 @@
           return (
             <div style={S.overlay}>
               <div style={Object.assign({},S.modal,{maxWidth:500})}>
-                <h3 style={{fontSize:17,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Configurar Semana A/B</h3>
-                <p style={{fontSize:12,color:"#64748b",marginBottom:16}}>El nuevo seteo aplica desde el lunes elegido hacia adelante.</p>
+                <h3 style={{fontSize:17,fontWeight:700,margin:"0 0 4px",color:"#0f172a"}}>Configurar semana A/B</h3>
+                <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+                  <LChip on={mode==="on"} onClick={function(){setMode("on");}}>Semanas A y B alternas</LChip>
+                  <LChip on={mode==="off"} onClick={function(){setMode("off");}}>Desactivar a partir de una fecha</LChip>
+                </div>
+                {abOff&&<div style={Object.assign({},S.ok,{background:"#eef2ff",color:"#3730a3",borderColor:"#c7d2fe"})}>{abOff>"2000-12-31"?"Ahora mismo: A/B activas hasta la semana anterior al "+fmtS(abOff)+"; desde esa semana, un solo tipo.":"Ahora mismo: A/B desactivadas en todas las semanas."}</div>}
+                {mode==="off"&&(
+                  <div>
+                    <div style={{marginBottom:10}}><label style={S.lbl}>Un solo tipo de semana a partir del lunes</label><input type="date" style={S.inp} value={offD} onChange={function(e){if(!e.target.value)return;setOffD(ld(mon(pl(e.target.value))));}}/></div>
+                    <p style={{fontSize:12,color:"#475569",margin:"0 0 10px",lineHeight:1.5}}>Las semanas anteriores al {fmtS(offD)} se quedan exactamente como están, con su alternancia A/B. Desde esa semana todas usan la misma estructura: la de <b>Semana tipo</b> (parte de la antigua semana A). Para cambiarla, guarda en Semana tipo una versión que se aplique desde el {fmtS(offD)}.</p>
+                    {offD<ld(mon(new Date()))&&<div style={Object.assign({},S.err,{background:"#fffbeb",color:"#92400e",borderColor:"#fcd34d"})}>Atención: la fecha es anterior a esta semana, así que también cambiarán semanas pasadas.</div>}
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                      <button style={S.btnS} onClick={onClose}>Cancelar</button>
+                      <button style={S.btnP} onClick={function(){setAbOff(offD);onClose();}}>Aplicar</button>
+                    </div>
+                  </div>
+                )}
+                {mode==="on"&&abOff&&(
+                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+                    <button style={Object.assign({},S.btnS,{borderColor:"#93c5fd",color:"#1d4ed8"})} onClick={function(){setAbOff("");onClose();}}>Volver a activar A/B en todas las semanas</button>
+                  </div>
+                )}
+                {mode==="on"&&<div>
+                <p style={{fontSize:12,color:"#64748b",marginBottom:16}}>El nuevo ajuste se aplica desde el lunes elegido hacia adelante.</p>
                 <div style={{marginBottom:14}}><label style={S.lbl}>Desde el lunes</label><input type="date" style={S.inp} value={d} min={tm} onChange={function(e){var x=new Date(e.target.value+"T12:00:00");setD(ld(mon(x)));}}/>
                 </div>
                 <div style={{marginBottom:16}}>
-                  <label style={S.lbl}>Esa semana sera de tipo</label>
+                  <label style={S.lbl}>Esa semana será de tipo</label>
                   <div style={{display:"flex",gap:8}}>
                     <button style={{flex:1,padding:"8px",borderRadius:8,border:"2px solid",borderColor:t==="A"?"#3b82f6":"#e2e8f0",background:t==="A"?"#eff6ff":"#f8fafc",color:t==="A"?"#1d4ed8":"#94a3b8",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}} onClick={function(){setT("A");}}>Semana A</button>
                     <button style={{flex:1,padding:"8px",borderRadius:8,border:"2px solid",borderColor:t==="B"?"#8b5cf6":"#e2e8f0",background:t==="B"?"#f5f3ff":"#f8fafc",color:t==="B"?"#7c3aed":"#94a3b8",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"inherit"}} onClick={function(){setT("B");}}>Semana B</button>
@@ -916,6 +1855,7 @@
                   <button style={S.btnS} onClick={onClose}>Cancelar</button>
                   <button style={S.btnP} onClick={function(){onSave(d,t);}}>Guardar</button>
                 </div>
+                </div>}
               </div>
             </div>
           );
@@ -933,10 +1873,10 @@
           return (
             <div style={S.overlay}>
               <div style={S.modal}>
-                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>Dias Festivos</h3>
+                <h3 style={{fontSize:18,fontWeight:700,margin:"0 0 20px",color:"#0f172a"}}>Días festivos</h3>
                 <div style={{display:"flex",gap:8,marginBottom:12}}>
                   <input type="date" style={Object.assign({},S.inp,{flex:1})} value={nd} onChange={function(e){setNd(e.target.value);}}/>
-                  <button style={S.btnP} onClick={function(){if(nd){onAdd(nd);setNd("");}}}>Aniadir</button>
+                  <button style={S.btnP} onClick={function(){if(nd){onAdd(nd);setNd("");}}}>Añadir</button>
                 </div>
                 <div style={{maxHeight:200,overflowY:"auto"}}>
                   {items}
@@ -1001,7 +1941,7 @@
           return (
             <div style={{position:"fixed",inset:0,background:"#000",zIndex:1500,display:"flex",flexDirection:"column",userSelect:"none"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"rgba(0,0,0,0.85)",flexShrink:0,gap:8}}>
-                <span style={{color:"#fff",fontWeight:700,fontSize:14,fontFamily:"Arial,sans-serif"}}>Planificacion {label}</span>
+                <span style={{color:"#fff",fontWeight:700,fontSize:14,fontFamily:"Arial,sans-serif"}}>Planificación {label}</span>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span style={{color:"#94a3b8",fontSize:12,fontFamily:"Arial,sans-serif"}}>{Math.round(scale*100)}%</span>
                   <button onClick={resetView} style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",padding:"6px 12px",borderRadius:7,cursor:"pointer",fontSize:12,fontFamily:"Arial,sans-serif"}}>1:1</button>
@@ -1017,7 +1957,7 @@
                   draggable={false}/>
               </div>
               <div style={{padding:"8px 16px",background:"rgba(0,0,0,0.7)",textAlign:"center",flexShrink:0}}>
-                <span style={{color:"#64748b",fontSize:11,fontFamily:"Arial,sans-serif"}}>Pellizca para ampliar · Arrastra para mover · Rueda del raton para zoom · Descarga y comparte por WhatsApp</span>
+                <span style={{color:"#64748b",fontSize:11,fontFamily:"Arial,sans-serif"}}>Pellizca para ampliar · Arrastra para mover · Rueda del ratón para zoom · Descarga y comparte por WhatsApp</span>
               </div>
             </div>
           );
@@ -1026,17 +1966,17 @@
         const S={
           app:{fontFamily:"Arial,sans-serif",background:"#f0f4f8",minHeight:"100vh",color:"#1e293b"},
           hdr:{background:"#0f172a",color:"#f8fafc",padding:"0 20px",boxShadow:"0 2px 12px rgba(0,0,0,0.3)",position:"sticky",top:0,zIndex:100},
-          hTop:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0 8px",borderBottom:"1px solid rgba(255,255,255,0.08)"},
+          hTop:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0 8px",borderBottom:"1px solid rgba(255,255,255,0.08)",gap:10,flexWrap:"wrap"},
           hBrand:{display:"flex",alignItems:"center",gap:10},
           bMark:{width:34,height:34,background:"linear-gradient(135deg,#3b82f6,#06b6d4)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:17,color:"#fff"},
           bTitle:{fontWeight:700,fontSize:15},
-          bSub:{fontSize:10,color:"#94a3b8",textTransform:"uppercase"},
-          hActs:{display:"flex",gap:6,alignItems:"center"},
-          aBtn:{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",color:"#f0f4f8",padding:"5px 10px",borderRadius:6,fontSize:11,cursor:"pointer",fontFamily:"inherit"},
-          ddMenu:{position:"absolute",top:"100%",right:0,background:"#1e293b",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,overflow:"hidden",zIndex:200,minWidth:180,marginTop:4,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"},
+          bSub:{fontSize:11,color:"#94a3b8"},
+          hActs:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"},
+          aBtn:{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",color:"#f0f4f8",padding:"5px 10px",borderRadius:6,fontSize:12,cursor:"pointer",fontFamily:"inherit"},
+          ddMenu:{position:"absolute",top:"100%",right:0,background:"#1e293b",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,overflow:"hidden",zIndex:200,minWidth:230,marginTop:4,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"},
           ddItem:{display:"block",width:"100%",padding:"9px 14px",background:"none",border:"none",color:"#e2e8f0",textAlign:"left",cursor:"pointer",fontSize:12,fontFamily:"inherit"},
-          hNav:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0"},
-          nLeft:{display:"flex",alignItems:"center",gap:6},
+          hNav:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",gap:8,flexWrap:"wrap"},
+          nLeft:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"},
           nRight:{display:"flex",gap:10,alignItems:"center"},
           vtog:{display:"flex",background:"rgba(255,255,255,0.06)",borderRadius:6,overflow:"hidden",border:"1px solid rgba(255,255,255,0.1)"},
           vtBtn:{padding:"4px 12px",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12,fontFamily:"inherit"},
@@ -1044,62 +1984,90 @@
           nBtn:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"#e2e8f0",padding:"4px 11px",borderRadius:6,cursor:"pointer",fontSize:16,fontFamily:"inherit"},
           wLbl:{fontSize:13,fontWeight:600,color:"#e2e8f0",marginLeft:2},
           wBadge:{display:"inline-block",padding:"2px 8px",borderRadius:12,fontSize:11,fontWeight:700,color:"#fff"},
-          tabs:{display:"flex",gap:3},
+          tabs:{display:"flex",gap:3,flexWrap:"wrap"},
           tab:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"#94a3b8",padding:"5px 12px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",position:"relative"},
           tabA:{background:"#3b82f6",borderColor:"#3b82f6",color:"#fff"},
-          aBadge:{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700},
+          aBadge:{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"#fff",borderRadius:"50%",minWidth:16,height:16,fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,padding:"0 3px"},
           fBar:{display:"flex",alignItems:"center",gap:8,padding:"6px 0 8px",overflowX:"auto",borderTop:"1px solid rgba(255,255,255,0.06)",flexWrap:"wrap"},
-          fLbl:{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",flexShrink:0},
+          fLbl:{fontSize:11,color:"#64748b",fontWeight:700,flexShrink:0},
           fGrp:{display:"flex",alignItems:"center",gap:4,flexShrink:0},
-          fGLbl:{fontSize:9,color:"#475569",fontWeight:700,textTransform:"uppercase",marginRight:2},
+          fGLbl:{fontSize:10,color:"#64748b",fontWeight:700,marginRight:2},
           fChip:{padding:"3px 9px",borderRadius:12,border:"1px solid",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:500},
           fDiv:{width:1,height:20,background:"rgba(255,255,255,0.1)",flexShrink:0},
+
+          // Dashboard: columnas estrechas y contenido centrado (captura menos apaisada)
           dash:{padding:"16px 12px",overflowX:"auto"},
-          dGrid:{display:"grid",gridTemplateColumns:"repeat(5,minmax(185px,1fr))",gap:10,minWidth:940},
-          mCont:{padding:"12px 16px",overflowX:"auto"},
-          mDayLbls:{display:"grid",gridTemplateColumns:"42px repeat(5,1fr)",gap:6,marginBottom:4},
-          mDL:{textAlign:"center",fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase"},
-          mWRow:{display:"flex",gap:6,marginBottom:8,alignItems:"stretch"},
-          mWLbl:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:42,gap:4,flexShrink:0},
-          mWN:{fontSize:10,color:"#94a3b8",fontWeight:700},
-          mWGrid:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,flex:1,minWidth:0},
+          capW:{width:"max-content",margin:"0 auto",padding:8,background:"#f0f4f8"},
+          dGrid:{display:"grid",gridTemplateColumns:"repeat(5,minmax(168px,196px))",gap:8,justifyContent:"center"},
+          mRow:{display:"grid",gridTemplateColumns:"42px repeat(5,minmax(120px,1fr))",gap:6,marginBottom:6},
+          capM:{padding:"4px 4px 8px",background:"#f0f4f8",minWidth:700},
+          mDL:{textAlign:"center",fontSize:12,fontWeight:700,color:"#475569"},
+          mWN:{fontSize:11,color:"#64748b",fontWeight:700},
+          legend:{display:"flex",flexWrap:"wrap",gap:"4px 16px",fontSize:11,color:"#475569",marginTop:8,paddingLeft:44},
+          legSw:{display:"inline-block",width:10,height:10,borderRadius:2,marginRight:5,verticalAlign:"middle"},
           dCol:{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.05)",position:"relative",overflow:"visible"},
           dColC:{borderRadius:8},
           dHdr:{background:"#0f172a",color:"#fff",padding:"9px 10px",display:"flex",alignItems:"center",gap:6,borderRadius:"9px 9px 0 0"},
           dHdrC:{padding:"5px 8px",borderRadius:"7px 7px 0 0"},
-          dName:{fontWeight:700,fontSize:13,flex:1},
-          dDate:{fontSize:10,color:"#94a3b8"},
+          dName:{fontWeight:700,fontSize:15,flex:1},
+          dDate:{fontSize:13,color:"#cbd5e1",fontWeight:600},
           fesB:{padding:12,textAlign:"center",background:"repeating-linear-gradient(45deg,#fef9c3,#fef9c3 6px,#fefce8 6px,#fefce8 12px)",margin:8,borderRadius:6},
-          fesL:{fontWeight:700,color:"#854d0e",fontSize:12},
-          secLbl:{fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#64748b",padding:"7px 10px 2px"},
-          sec:{padding:"3px 6px 6px",display:"flex",flexDirection:"column",gap:3},
-          twin:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3},
-          aCell:{border:"1px solid",borderRadius:7,padding:"5px 7px",cursor:"pointer",position:"relative",display:"flex",flexDirection:"column",gap:3},
-          aCellC:{padding:"4px 5px",borderRadius:5,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
-          aName:{fontSize:11,fontWeight:700,color:"#334155"},
-          mBadge:{width:6,height:6,borderRadius:"50%",background:"#f97316",display:"inline-block",marginLeft:3},
+          fesL:{fontWeight:700,color:"#854d0e",fontSize:13},
+
+          // Separación mañana / tarde
+          amBlk:{borderLeft:"4px solid #f59e0b",background:"#fffdf6"},
+          pmBlk:{borderLeft:"4px solid #6366f1",background:"#f7f8ff",borderTop:"2px solid #6366f1",borderRadius:"0 0 9px 9px"},
+          amBlkC:{},
+          pmBlkC:{borderTop:"1px dashed #a5b4fc",background:"#fafaff",borderRadius:"0 0 7px 7px"},
+          amLbl:{fontSize:12,fontWeight:700,color:"#92400e",background:"#fef3c7",padding:"4px 10px"},
+          pmLbl:{fontSize:12,fontWeight:700,color:"#3730a3",background:"#e0e7ff",padding:"4px 10px"},
+
+          sec:{padding:"4px 6px 6px",display:"flex",flexDirection:"column",gap:4},
+          twin:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4},
+          oneC:{display:"flex",flexDirection:"column",gap:3},
+          aCell:{border:"1px solid",borderRadius:7,padding:"5px 6px",cursor:"pointer",position:"relative",display:"flex",flexDirection:"column",gap:3,minWidth:0},
+          aCellC:{padding:"3px 5px",borderRadius:5,flexDirection:"row",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:2},
+          aName:{fontSize:13,fontWeight:700,color:"#334155",wordBreak:"break-word"},
+          payX:{fontSize:10,fontWeight:800,color:"#166534",background:"#dcfce7",border:"1px solid #86efac",borderRadius:6,padding:"0 4px"},
+          payJ:{fontSize:9,fontWeight:600,color:"#64748b",background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:6,padding:"0 4px"},
+          addB:{fontSize:10,fontWeight:800,color:"#0369a1"},
+          mvF:{fontSize:11,color:"#0369a1",fontWeight:600},
+          mvT:{fontSize:11,color:"#64748b",fontWeight:600},
           dChipD:{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"2px 8px",borderRadius:10,border:"1.5px solid",alignSelf:"flex-start",background:"#fff",minHeight:18,boxSizing:"border-box"},
-          lvCh:{background:"#f1f5f9",color:"#94a3b8",fontSize:9,padding:"1px 6px",borderRadius:8,border:"1px dashed #cbd5e1",alignSelf:"flex-start"},
-          unCh:{background:"#fffbeb",color:"#92400e",fontSize:9,padding:"1px 6px",borderRadius:8,border:"1px dashed #fcd34d",alignSelf:"flex-start"},
-          stCh:{fontSize:9,padding:"2px 7px",borderRadius:8,border:"1px solid",alignSelf:"flex-start",fontWeight:600},
-          aMenu:{position:"absolute",top:"100%",left:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:9,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",zIndex:300,minWidth:170,padding:7,display:"flex",flexDirection:"column",gap:3},
-          aMT:{fontSize:10,fontWeight:700,color:"#64748b",textTransform:"uppercase",padding:"1px 5px 5px",borderBottom:"1px solid #f1f5f9",marginBottom:2},
+          lvCh:{background:"#f1f5f9",color:"#64748b",fontSize:11,padding:"1px 6px",borderRadius:8,border:"1px dashed #cbd5e1",alignSelf:"flex-start"},
+          lvChC:{fontSize:9,color:"#64748b"},
+          unCh:{background:"#fffbeb",color:"#92400e",fontSize:11,padding:"1px 6px",borderRadius:8,border:"1px dashed #fcd34d",alignSelf:"flex-start"},
+          unChC:{fontSize:10,color:"#92400e",background:"#fef3c7",padding:"0 5px",borderRadius:4,fontWeight:700},
+          stCh:{fontSize:11,padding:"1px 6px",borderRadius:8,border:"1px solid",alignSelf:"flex-start",fontWeight:600},
+          addAct:{marginTop:2,width:"100%",padding:"4px 0",background:"none",border:"1px dashed #cbd5e1",borderRadius:5,color:"#64748b",fontSize:11,cursor:"pointer",fontFamily:"inherit"},
+          aMenu:{position:"absolute",top:"100%",left:0,background:"#fff",border:"1px solid #e2e8f0",borderRadius:9,boxShadow:"0 8px 32px rgba(0,0,0,0.15)",zIndex:300,minWidth:210,padding:7,display:"flex",flexDirection:"column",gap:3,cursor:"default"},
+          aMT:{fontSize:11,fontWeight:700,color:"#64748b",padding:"1px 5px 5px",borderBottom:"1px solid #f1f5f9",marginBottom:2},
           aMItem:{padding:"5px 9px",borderRadius:5,border:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",textAlign:"left"},
           aMG:{padding:"5px 9px",borderRadius:5,border:"none",cursor:"pointer",fontSize:12,fontFamily:"inherit",textAlign:"left",background:"#f1f5f9",color:"#475569"},
           aMSt:{padding:"6px 9px",borderRadius:5,border:"1px solid",cursor:"pointer",fontSize:12,fontFamily:"inherit",textAlign:"left",fontWeight:500},
-          aMClose:{padding:"4px 9px",borderRadius:5,border:"1px solid #e2e8f0",cursor:"pointer",fontSize:11,fontFamily:"inherit",background:"#f8fafc",color:"#64748b",marginTop:2},
+          aMClose:{padding:"4px 9px",borderRadius:5,border:"1px solid #e2e8f0",cursor:"pointer",fontSize:11,fontFamily:"inherit",background:"#f8fafc",color:"#64748b",marginTop:4},
           sRow:{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:5,padding:"4px 7px"},
           sHdr:{display:"flex",alignItems:"center",gap:4},
-          sIcon:{fontSize:10,fontWeight:700,color:"#3730a3"},
-          sLbl:{fontSize:10,fontWeight:600,color:"#1e40af",flex:1},
-          sTime:{fontSize:9,color:"#60a5fa"},
+          sIcon:{fontSize:11,fontWeight:700,color:"#3730a3"},
+          sLbl:{fontSize:11,fontWeight:600,color:"#1e40af",flex:1},
+          sTime:{fontSize:10,color:"#3b82f6"},
           sDocs:{display:"flex",gap:3,marginTop:4,flexWrap:"wrap"},
-          dChip:{padding:"2px 6px",borderRadius:8,border:"1.5px solid",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},
+          dChip:{padding:"2px 6px",borderRadius:8,border:"1.5px solid",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},
           togBtn:{padding:"2px 7px",borderRadius:8,border:"none",fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",color:"#fff"},
-          c4Btn:{marginTop:3,width:"100%",padding:"3px 0",background:"none",border:"1px dashed #cbd5e1",borderRadius:5,color:"#64748b",fontSize:10,cursor:"pointer",fontFamily:"inherit"},
-          overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(2px)"},
-          modal:{background:"#fff",borderRadius:12,padding:24,minWidth:340,maxWidth:460,width:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"},
-          lbl:{display:"block",fontSize:11,fontWeight:600,color:"#475569",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"},
+
+          // Tablas y vistas
+          h2:{fontSize:18,fontWeight:700,color:"#0f172a",marginBottom:16,marginTop:0},
+          tbl:{background:"#fff",borderRadius:10,border:"1px solid #e2e8f0",overflow:"hidden"},
+          th:{display:"grid",background:"#0f172a",color:"#cbd5e1",fontSize:11,fontWeight:700},
+          thc:{padding:"10px 12px"},
+          td:{padding:"9px 12px"},
+          err:{background:"#fef2f2",color:"#991b1b",border:"1px solid #fca5a5",borderRadius:7,padding:"8px 10px",fontSize:12,marginBottom:12},
+          ok:{background:"#f0fdf4",color:"#166534",border:"1px solid #bbf7d0",borderRadius:7,padding:"8px 10px",fontSize:12,marginBottom:12},
+          xBtn:{background:"none",border:"1px solid #e2e8f0",borderRadius:5,color:"#94a3b8",cursor:"pointer",fontSize:11,padding:"2px 6px",fontFamily:"inherit"},
+
+          overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(2px)",padding:12},
+          modal:{background:"#fff",borderRadius:12,padding:24,minWidth:300,maxWidth:480,width:"92vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"},
+          lbl:{display:"block",fontSize:11,fontWeight:600,color:"#475569",marginBottom:4,letterSpacing:"0.03em"},
           sel:{width:"100%",padding:"7px 9px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc"},
           inp:{width:"100%",padding:"7px 9px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",boxSizing:"border-box"},
           addBtn:{background:"#3b82f6",color:"#fff",border:"none",padding:"7px 14px",borderRadius:7,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"},
